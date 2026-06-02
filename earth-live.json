@@ -1,1 +1,1 @@
-{"source":"NASA Worldview Snapshots","baseLayer":"BlueMarble_ShadedRelief_Bathymetry","liveLayer":"OCI_PACE_True_Color","requestedTime":"2026-06-01","acquisitionTime":"2026-06-01","dataPresent":true,"width":1024,"height":512,"generatedAt":"2026-06-01T20:35:20.696773Z"}
+{"source":"NASA Worldview Snapshots","baseLayer":"BlueMarble_ShadedRelief_Bathymetry","liveLayer":"VIIRS_NOAA21_CorrectedReflectance_TrueColor","requestedTime":"2026-06-02","acquisitionTime":"2026-06-02","dataPresent":true,"width":1024,"height":512,"generatedAt":"2026-06-02T04:59:57.255292Z"}
