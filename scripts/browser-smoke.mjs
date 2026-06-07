@@ -3,7 +3,19 @@ import { chromium } from "playwright";
 const url = process.env.SMOKE_URL || "http://127.0.0.1:4173/";
 const debugUrl = new URL(url);
 debugUrl.searchParams.set("debug", "1");
-const browser = await chromium.launch();
+async function launchBrowser() {
+  try {
+    return await chromium.launch({ channel: "chromium" });
+  } catch (error) {
+    const message = error?.message || String(error);
+    if (message.includes("Executable doesn't exist")) {
+      console.error("Playwright browser is missing. Run `npm run test:setup` before `npm run test:smoke`.");
+    }
+    throw error;
+  }
+}
+
+const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 const errors = [];
 

@@ -5,6 +5,7 @@
   "scripts": {
     "check:syntax": "node --check app.js",
     "check:static": "node scripts/static-guard.mjs",
+    "test:setup": "playwright install chromium",
     "test:smoke": "node scripts/browser-smoke.mjs"
   },
   "devDependencies": {
