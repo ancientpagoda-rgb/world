@@ -2,8 +2,6 @@ name: Update World Data
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "25 2 * * 0"
 
 permissions:
   contents: write

@@ -2,8 +2,6 @@ name: Update Earth Live Texture
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "15 */4 * * *"
 
 permissions:
   contents: write

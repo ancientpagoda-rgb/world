@@ -1,0 +1,95 @@
+name: Refresh generated assets
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-generated-assets
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install eccodes numpy pillow
+
+      - name: Refresh Earth texture
+        run: python scripts/update_earth_live_texture.py
+
+      - name: Refresh NOAA weather grid
+        run: python scripts/update_noaa_weather_grid.py
+
+      - name: Refresh weather rasters
+        run: python scripts/build_weather_rasters.py
+
+      - name: Refresh population data
+        run: python scripts/update_population_only.py
+
+      - name: Refresh headlines
+        run: python scripts/update_headlines_only.py
+
+      - name: Validate generated assets
+        run: |
+          python -m json.tool earth-live.json > /dev/null
+          python -m json.tool noaa-weather-grid.json > /dev/null
+          python -m json.tool weather-rasters.json > /dev/null
+          python -m json.tool world-data.json > /dev/null
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          required_files = [
+              "earth-live.jpg",
+              "earth-live.json",
+              "noaa-weather-grid.json",
+              "weather-temp.png",
+              "weather-precip.png",
+              "weather-rasters.json",
+              "world-data.json",
+          ]
+          missing = [path for path in required_files if not Path(path).is_file()]
+          empty = [path for path in required_files if Path(path).is_file() and Path(path).stat().st_size == 0]
+          if missing:
+              raise SystemExit(f"missing generated files: {', '.join(missing)}")
+          if empty:
+              raise SystemExit(f"empty generated files: {', '.join(empty)}")
+
+          weather = json.loads(Path("noaa-weather-grid.json").read_text(encoding="utf-8"))
+          points = weather.get("grid", [])
+          if len(points) < 100:
+              raise SystemExit(f"expected at least 100 NOAA grid points, found {len(points)}")
+
+          rows = json.loads(Path("world-data.json").read_text(encoding="utf-8"))
+          if not isinstance(rows, list):
+              raise SystemExit("world-data.json must be a list")
+          if len(rows) < 200:
+              raise SystemExit(f"expected at least 200 country rows, found {len(rows)}")
+          missing_headlines = [row.get("name", "<unknown>") for row in rows if not row.get("headline")]
+          if missing_headlines:
+              raise SystemExit(f"missing headlines for: {', '.join(missing_headlines[:10])}")
+          print(f"Validated {len(rows)} country rows and {len(points)} NOAA grid points")
+          PY
+
+      - name: Commit refreshed assets
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "data: refresh generated assets"
+          file_pattern: earth-live.jpg earth-live.json noaa-weather-grid.json weather-temp.png weather-precip.png weather-rasters.json world-data.json
