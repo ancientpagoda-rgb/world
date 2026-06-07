@@ -1,0 +1,57 @@
+name: Refresh world data
+
+on:
+  schedule:
+    - cron: "17 */12 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-world-data
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Refresh population data
+        run: python scripts/update_population_only.py
+
+      - name: Refresh headlines
+        run: python scripts/update_headlines_only.py
+
+      - name: Validate world data
+        run: |
+          python -m json.tool world-data.json > /dev/null
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          rows = json.loads(Path("world-data.json").read_text(encoding="utf-8"))
+          if not isinstance(rows, list):
+              raise SystemExit("world-data.json must be a list")
+          if len(rows) < 200:
+              raise SystemExit(f"expected at least 200 country rows, found {len(rows)}")
+          missing = [row.get("name", "<unknown>") for row in rows if not row.get("headline")]
+          if missing:
+              raise SystemExit(f"missing headlines for: {', '.join(missing[:10])}")
+          print(f"Validated {len(rows)} country rows")
+          PY
+
+      - name: Commit refreshed data
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "data: refresh world data"
+          file_pattern: world-data.json
