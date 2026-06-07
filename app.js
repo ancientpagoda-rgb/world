@@ -2586,8 +2586,8 @@ function renderNewsItem(item) {
   english.className = "news-en";
 
   const originalText = item.title || item.headline || item.text || "";
-  const daText = item.da || toDaCore(originalText);
-  const englishText = item.english || originalText;
+  const daText = item.da || "Translating…";
+  const englishText = item.english || "Translating…";
 
   // Color-code segments by position so each original segment maps visually to its transliteration.
   setColorCodedSegments(original, originalText, "syllable");
@@ -2596,6 +2596,20 @@ function renderNewsItem(item) {
 
   row.append(original, da, english);
   return row;
+}
+
+async function hydrateNewsItem(row, originalText, language = "") {
+  const daEl = row.querySelector(".news-da");
+  const englishEl = row.querySelector(".news-en");
+  if (!daEl || !englishEl) return;
+
+  const [daText, englishText] = await Promise.all([
+    toDaDisplay(originalText, language),
+    toEnglishDisplay(originalText, language),
+  ]);
+
+  setColorCodedSegments(daEl, daText || originalText, "translation");
+  setColorCodedSegments(englishEl, englishText || originalText, "translation");
 }
 
 async function renderCountries(countries) {
@@ -2682,22 +2696,16 @@ async function renderCountries(countries) {
     newsList.className = "news-list";
 
     const headlineText = item.title || item.headline || item.text || "No headline.";
-    const [headlineDa, headlineEn] = await Promise.all([
-      toDaDisplay(headlineText, item.language || ""),
-      toEnglishDisplay(headlineText, item.language || ""),
-    ]);
-    const row = renderNewsItem({ headline: headlineText, da: headlineDa, english: headlineEn });
+    const row = renderNewsItem({ headline: headlineText });
     newsList.appendChild(row);
+    hydrateNewsItem(row, headlineText, item.language || "").catch((err) => reportFatal(err));
 
     body.append(name, code, header, newsList);
 
     if (descClamped) {
-      const [descDa, descEn] = await Promise.all([
-        toDaDisplay(descClamped, item.language || ""),
-        toEnglishDisplay(descClamped, item.language || ""),
-      ]);
-      const drow = renderNewsItem({ text: descClamped, da: descDa, english: descEn });
+      const drow = renderNewsItem({ text: descClamped });
       newsList.appendChild(drow);
+      hydrateNewsItem(drow, descClamped, item.language || "").catch((err) => reportFatal(err));
     }
 
     const population = document.createElement("div");
