@@ -1,6 +1,8 @@
 import { chromium } from "playwright";
 
 const url = process.env.SMOKE_URL || "http://127.0.0.1:4173/";
+const debugUrl = new URL(url);
+debugUrl.searchParams.set("debug", "1");
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 const errors = [];
@@ -35,6 +37,23 @@ try {
     return Boolean(canvas && canvas.width > 0 && canvas.height > 0);
   });
   if (!canvasReady) errors.push("Weather canvas did not initialize with a drawable size.");
+
+  const buildTagHidden = await page.evaluate(() => {
+    const tag = document.querySelector("#build-tag");
+    return Boolean(tag && getComputedStyle(tag).display === "none");
+  });
+  if (!buildTagHidden) errors.push("Build tag should be hidden unless debug mode is enabled.");
+
+  await page.goto(debugUrl.toString(), { waitUntil: "domcontentloaded", timeout: 20000 });
+  await page.waitForFunction(
+    () => document.body.classList.contains("debug-mode"),
+    { timeout: 5000 },
+  );
+  const buildTagVisible = await page.evaluate(() => {
+    const tag = document.querySelector("#build-tag");
+    return Boolean(tag && getComputedStyle(tag).display !== "none");
+  });
+  if (!buildTagVisible) errors.push("Build tag should be visible when ?debug=1 is present.");
 } finally {
   await browser.close();
 }
