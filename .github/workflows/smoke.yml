@@ -36,25 +36,5 @@ jobs:
       - name: Install browser runtime
         run: npx playwright install --with-deps chromium
 
-      - name: Start local site
-        run: |
-          python3 -m http.server 4173 --bind 127.0.0.1 &
-          echo $! > server.pid
-          python3 - <<'PY'
-          import time
-          import urllib.request
-
-          for _ in range(40):
-              try:
-                  urllib.request.urlopen('http://127.0.0.1:4173/', timeout=1).read()
-                  break
-              except Exception:
-                  time.sleep(0.25)
-          else:
-              raise SystemExit('Local test server did not start')
-          PY
-
       - name: Run browser smoke test
-        env:
-          SMOKE_URL: http://127.0.0.1:4173/
         run: npm run test:smoke

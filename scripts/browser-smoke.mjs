@@ -1,8 +1,74 @@
+import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
+import { createServer } from "node:http";
+import { extname, join, normalize, resolve, sep } from "node:path";
 import { chromium } from "playwright";
 
-const url = process.env.SMOKE_URL || "http://127.0.0.1:4173/";
+const root = resolve(".");
+const contentTypes = {
+  ".css": "text/css; charset=utf-8",
+  ".html": "text/html; charset=utf-8",
+  ".jpg": "image/jpeg",
+  ".js": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+};
+const providedUrl = process.env.SMOKE_URL;
+const { server, url } = providedUrl
+  ? { server: null, url: providedUrl }
+  : await startStaticServer();
 const debugUrl = new URL(url);
 debugUrl.searchParams.set("debug", "1");
+
+async function startStaticServer() {
+  const server = createServer(async (req, res) => {
+    try {
+      const requestedUrl = new URL(req.url || "/", "http://127.0.0.1");
+      const pathname = requestedUrl.pathname === "/" ? "/index.html" : requestedUrl.pathname;
+      const decodedPath = decodeURIComponent(pathname);
+      const filePath = normalize(join(root, decodedPath));
+
+      if (filePath !== root && !filePath.startsWith(root + sep)) {
+        res.writeHead(403);
+        res.end("Forbidden");
+        return;
+      }
+
+      const fileStat = await stat(filePath);
+      if (!fileStat.isFile()) {
+        res.writeHead(404);
+        res.end("Not found");
+        return;
+      }
+
+      res.writeHead(200, {
+        "Content-Length": fileStat.size,
+        "Content-Type": contentTypes[extname(filePath)] || "application/octet-stream",
+      });
+      createReadStream(filePath).pipe(res);
+    } catch {
+      res.writeHead(404);
+      res.end("Not found");
+    }
+  });
+
+  await new Promise((resolveListen, rejectListen) => {
+    server.once("error", rejectListen);
+    server.listen(0, "127.0.0.1", () => {
+      server.off("error", rejectListen);
+      resolveListen();
+    });
+  });
+
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("Could not start local smoke-test server");
+  }
+
+  return { server, url: `http://127.0.0.1:${address.port}/` };
+}
+
 async function launchBrowser() {
   try {
     return await chromium.launch({ channel: "chromium" });
@@ -15,9 +81,17 @@ async function launchBrowser() {
   }
 }
 
-const browser = await launchBrowser();
-const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+let browser;
 const errors = [];
+
+try {
+  browser = await launchBrowser();
+} catch (error) {
+  if (server) await new Promise((resolveClose) => server.close(resolveClose));
+  throw error;
+}
+
+const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 
 await page.addInitScript(() => {
   window.__starfieldResizeCount = 0;
@@ -92,6 +166,7 @@ try {
   if (!buildTagVisible) errors.push("Build tag should be visible when ?debug=1 is present.");
 } finally {
   await browser.close();
+  if (server) await new Promise((resolveClose) => server.close(resolveClose));
 }
 
 if (errors.length) {
