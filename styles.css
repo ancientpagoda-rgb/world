@@ -331,7 +331,7 @@ main {
 
 .news-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: 0.75rem;
   align-items: start;
   padding: 0.65rem 0;
@@ -339,7 +339,8 @@ main {
 }
 
 .news-original,
-.news-da {
+.news-da,
+.news-en {
   overflow-wrap: anywhere;
   color: rgba(237, 246, 255, 0.92);
 }
@@ -369,9 +370,15 @@ main {
   letter-spacing: 0.02em;
 }
 
+.news-en {
+  font-size: 1.02rem;
+  line-height: 1.35;
+  color: rgba(200, 246, 230, 0.92);
+}
+
 .news-list-header {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 0.75rem;
   margin-top: 10px;
   color: rgba(149, 173, 188, 0.95);

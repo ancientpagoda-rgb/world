@@ -57,8 +57,9 @@
         <details class="legend">
           <summary>How to read this</summary>
           <p>
-            The orb shows the globe and weather layer. Each country row shows the original headline
-            alongside a transliterated “ÐΛ Core + kit” version. Raster overlays can be toggled on or off.
+            The orb shows the globe and weather layer. Each country row shows the original headline,
+            the transliterated “ÐΛ Core + kit” version, and an English translation. Raster overlays
+            can be toggled on or off.
           </p>
         </details>
 
@@ -105,7 +106,7 @@
         document.body.appendChild(s);
 
         const tag = document.getElementById("build-tag");
-        if (tag) tag.textContent = `World v1.0.1\nbuild ${v || ""}${v ? " | " : ""}app ${appV}\nagent: connected`;
+        if (tag) tag.textContent = `World v1.0.2\nbuild ${v || ""}${v ? " | " : ""}app ${appV}\nagent: connected`;
 
         const toggle = document.getElementById("rasters-toggle");
         const rastersOn = () => searchParams.get("rasters") === "1";

@@ -499,6 +499,42 @@ async function toDaDisplay(input = "", language = "") {
   return toDaCore(text);
 }
 
+const englishTranslationCache = new Map();
+
+async function toEnglishDisplay(input = "", language = "") {
+  const text = String(input || "").trim();
+  if (!text) return "";
+  if (language === "en") return text;
+  const cacheKey = `${language || "auto"}::${text}`;
+  if (englishTranslationCache.has(cacheKey)) return englishTranslationCache.get(cacheKey);
+
+  try {
+    const url = new URL("https://translate.googleapis.com/translate_a/single");
+    url.searchParams.set("client", "gtx");
+    url.searchParams.set("sl", language || "auto");
+    url.searchParams.set("tl", "en");
+    url.searchParams.set("dt", "t");
+    url.searchParams.set("q", text);
+
+    const data = await fetch(url.toString()).then((res) => res.json());
+    const translated = Array.isArray(data?.[0])
+      ? data[0]
+          .map((part) => (Array.isArray(part) ? String(part[0] || "") : ""))
+          .join("")
+          .trim()
+      : "";
+    if (translated) {
+      englishTranslationCache.set(cacheKey, translated);
+      return translated;
+    }
+  } catch (err) {
+    console.warn("English translation fallback:", err);
+  }
+
+  englishTranslationCache.set(cacheKey, text);
+  return text;
+}
+
 const STARS_URL = "./stars.json";
 const STAR_CATALOG = [];
 
@@ -2546,14 +2582,19 @@ function renderNewsItem(item) {
   const da = document.createElement("div");
   da.className = "news-da";
 
+  const english = document.createElement("div");
+  english.className = "news-en";
+
   const originalText = item.title || item.headline || item.text || "";
   const daText = item.da || toDaCore(originalText);
+  const englishText = item.english || originalText;
 
   // Color-code segments by position so each original segment maps visually to its transliteration.
   setColorCodedSegments(original, originalText, "syllable");
   setColorCodedSegments(da, daText, "translation");
+  setColorCodedSegments(english, englishText, "translation");
 
-  row.append(original, da);
+  row.append(original, da, english);
   return row;
 }
 
@@ -2633,21 +2674,29 @@ async function renderCountries(countries) {
     h1.textContent = "Original";
     const h2 = document.createElement("span");
     h2.textContent = "ÐΛ Core + kit";
-    header.append(h1, h2);
+    const h3 = document.createElement("span");
+    h3.textContent = "English translation";
+    header.append(h1, h2, h3);
 
     const newsList = document.createElement("ul");
     newsList.className = "news-list";
 
     const headlineText = item.title || item.headline || item.text || "No headline.";
-    const headlineDa = await toDaDisplay(headlineText, item.language || "");
-    const row = renderNewsItem({ headline: headlineText, da: headlineDa });
+    const [headlineDa, headlineEn] = await Promise.all([
+      toDaDisplay(headlineText, item.language || ""),
+      toEnglishDisplay(headlineText, item.language || ""),
+    ]);
+    const row = renderNewsItem({ headline: headlineText, da: headlineDa, english: headlineEn });
     newsList.appendChild(row);
 
     body.append(name, code, header, newsList);
 
     if (descClamped) {
-      const descDa = await toDaDisplay(descClamped, item.language || "");
-      const drow = renderNewsItem({ text: descClamped, da: descDa });
+      const [descDa, descEn] = await Promise.all([
+        toDaDisplay(descClamped, item.language || ""),
+        toEnglishDisplay(descClamped, item.language || ""),
+      ]);
+      const drow = renderNewsItem({ text: descClamped, da: descDa, english: descEn });
       newsList.appendChild(drow);
     }
 
