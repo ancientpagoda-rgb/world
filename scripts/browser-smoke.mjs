@@ -7,6 +7,25 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 const errors = [];
 
+await page.addInitScript(() => {
+  window.__starfieldResizeCount = 0;
+  for (const prop of ["width", "height"]) {
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, prop);
+    if (!descriptor?.set || !descriptor?.get) continue;
+    Object.defineProperty(HTMLCanvasElement.prototype, prop, {
+      configurable: true,
+      enumerable: descriptor.enumerable,
+      get() {
+        return descriptor.get.call(this);
+      },
+      set(value) {
+        if (this.id === "starfield-canvas") window.__starfieldResizeCount += 1;
+        return descriptor.set.call(this, value);
+      },
+    });
+  }
+});
+
 page.on("pageerror", (error) => {
   errors.push(error.stack || error.message || String(error));
 });
@@ -37,6 +56,11 @@ try {
     return Boolean(canvas && canvas.width > 0 && canvas.height > 0);
   });
   if (!canvasReady) errors.push("Weather canvas did not initialize with a drawable size.");
+
+  const starfieldResizeCount = await page.evaluate(() => window.__starfieldResizeCount || 0);
+  if (starfieldResizeCount > 4) {
+    errors.push(`Starfield canvas resized too often: ${starfieldResizeCount} assignments.`);
+  }
 
   const buildTagHidden = await page.evaluate(() => {
     const tag = document.querySelector("#build-tag");
