@@ -38,6 +38,11 @@
 
     <script>
       (async () => {
+        const searchParams = new URLSearchParams(location.search);
+        if (searchParams.get("debug") === "1") {
+          document.body.classList.add("debug-mode");
+        }
+
         // Cache-bust app.js using earth-live.json (updated by CI).
         // This avoids users getting stuck on a stale cached app.js on GitHub Pages.
         let v = "";
@@ -58,13 +63,7 @@
         if (tag) tag.textContent = `World v1.0.0\nbuild ${v || ""}${v ? " | " : ""}app ${appV}\nagent: connected`;
 
         const toggle = document.getElementById("rasters-toggle");
-        const rastersOn = () => {
-          try {
-            return new URLSearchParams(location.search).get("rasters") === "1";
-          } catch {
-            return false;
-          }
-        };
+        const rastersOn = () => searchParams.get("rasters") === "1";
         const setToggleLabel = () => {
           if (!toggle) return;
           toggle.textContent = `Rasters: ${rastersOn() ? "On" : "Off"}`;
