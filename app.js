@@ -1,4 +1,77 @@
 const populationFormatter = new Intl.NumberFormat("en-US");
+const countryUi = {
+  root: null,
+  filterInput: null,
+  jumpSelect: null,
+  summary: null,
+};
+
+let allCountries = [];
+
+function normalizeSearchText(value = "") {
+  return String(value).toLowerCase().normalize("NFKD");
+}
+
+function buildCountrySearchIndex(item) {
+  return normalizeSearchText(
+    [item.name, item.iso3, item.title, item.headline, item.text, item.description, item.year]
+      .filter(Boolean)
+      .join(" "),
+  );
+}
+
+function buildCountryRowId(item, index) {
+  const raw = String(item.iso3 || item.name || `country-${index + 1}`).toLowerCase();
+  const slug = raw.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return slug ? `country-${slug}` : `country-${index + 1}`;
+}
+
+function syncCountryControls(countries) {
+  countryUi.root = countryUi.root || document.querySelector("#country-list");
+  countryUi.filterInput = countryUi.filterInput || document.querySelector("#country-filter");
+  countryUi.jumpSelect = countryUi.jumpSelect || document.querySelector("#country-jump");
+  countryUi.summary = countryUi.summary || document.querySelector("#country-summary");
+
+  if (countryUi.jumpSelect) {
+    const currentValue = countryUi.jumpSelect.value;
+    countryUi.jumpSelect.innerHTML = '<option value="">Jump to country…</option>';
+    for (const item of countries) {
+      const option = document.createElement("option");
+      option.value = item._rowId || "";
+      option.textContent = `${item.name || "Unknown"}${item.iso3 ? ` (${item.iso3})` : ""}`;
+      countryUi.jumpSelect.appendChild(option);
+    }
+    if ([...countryUi.jumpSelect.options].some((opt) => opt.value === currentValue)) {
+      countryUi.jumpSelect.value = currentValue;
+    }
+  }
+}
+
+function updateCountrySummary(visibleCount, totalCount, query = "") {
+  if (!countryUi.summary) return;
+  if (!totalCount) {
+    countryUi.summary.textContent = "Loading countries…";
+    return;
+  }
+  if (!visibleCount) {
+    countryUi.summary.textContent = query
+      ? `No matches for “${query}”.`
+      : "No countries available.";
+    return;
+  }
+  countryUi.summary.textContent = query
+    ? `Showing ${visibleCount.toLocaleString()} of ${totalCount.toLocaleString()} countries for “${query}”.`
+    : `Showing ${visibleCount.toLocaleString()} countries.`;
+}
+
+async function applyCountryFilter() {
+  const rawQuery = String(countryUi.filterInput?.value || "").trim();
+  const query = normalizeSearchText(rawQuery);
+  const filtered = query ? allCountries.filter((item) => item._search.includes(query)) : allCountries.slice();
+  syncCountryControls(filtered);
+  await renderCountries(filtered);
+  updateCountrySummary(filtered.length, allCountries.length, rawQuery);
+}
 
 // Surface runtime failures on-page (helps debug when the globe goes blank).
 function reportFatal(err) {
@@ -2485,18 +2558,46 @@ function renderNewsItem(item) {
 }
 
 async function renderCountries(countries) {
-  const root = document.querySelector("#country-list");
+  const root = countryUi.root || document.querySelector("#country-list");
   root.innerHTML = "";
   const frag = document.createDocumentFragment();
+
+  if (!countries.length) {
+    const article = document.createElement("article");
+    article.className = "country-row";
+    article.tabIndex = -1;
+    const rank = document.createElement("div");
+    rank.className = "country-rank";
+    rank.textContent = "—";
+    const body = document.createElement("div");
+    body.className = "country-copy";
+    const name = document.createElement("p");
+    name.className = "country-headline";
+    name.textContent = "No matches found.";
+    const desc = document.createElement("p");
+    desc.className = "country-description";
+    desc.textContent = "Try a broader search or clear the filter to restore the full list.";
+    body.append(name, desc);
+    const pop = document.createElement("div");
+    pop.className = "country-population";
+    pop.textContent = "0";
+    article.append(rank, document.createElement("div"), body, pop);
+    frag.appendChild(article);
+    root.appendChild(frag);
+    return;
+  }
 
   for (let index = 0; index < countries.length; index += 1) {
     const item = countries[index];
     const desc = item.description || "";
     const descClamped = desc.length > 280 ? desc.slice(0, 277) + "..." : desc;
     const thumbUrl = getCountryThumbnailDataURL(item.iso3, 52, 39);
+    const rowId = item._rowId || buildCountryRowId(item, index);
 
     const article = document.createElement("article");
     article.className = "country-row";
+    article.id = rowId;
+    article.tabIndex = -1;
 
     const rank = document.createElement("div");
     rank.className = "country-rank";
@@ -2519,6 +2620,7 @@ async function renderCountries(countries) {
 
     const name = document.createElement("p");
     name.className = "country-headline";
+    name.id = `${rowId}-title`;
     name.textContent = item.name || "";
 
     const code = document.createElement("span");
@@ -2556,6 +2658,7 @@ async function renderCountries(countries) {
     year.textContent = item.year || "";
     population.appendChild(year);
 
+    article.setAttribute("aria-labelledby", name.id);
     article.append(rank, thumbWrap, body, population);
     frag.appendChild(article);
   }
@@ -2610,12 +2713,39 @@ function renderError() {
 async function loadCountries() {
   const response = await fetch(DATA_URL);
   const countries = await response.json();
-  await renderCountries(countries);
+  allCountries = countries.map((item, index) => ({
+    ...item,
+    _rowId: buildCountryRowId(item, index),
+    _search: buildCountrySearchIndex(item),
+  }));
+  syncCountryControls(allCountries);
+  if (countryUi.filterInput && !countryUi.filterInput.dataset.bound) {
+    countryUi.filterInput.dataset.bound = "1";
+    countryUi.filterInput.addEventListener("input", () => {
+      applyCountryFilter().catch((err) => reportFatal(err));
+    });
+  }
+  if (countryUi.jumpSelect && !countryUi.jumpSelect.dataset.bound) {
+    countryUi.jumpSelect.dataset.bound = "1";
+    countryUi.jumpSelect.addEventListener("change", () => {
+      const targetId = countryUi.jumpSelect.value;
+      if (!targetId) return;
+      const target = document.getElementById(targetId);
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        target.focus({ preventScroll: true });
+      }
+      countryUi.jumpSelect.value = "";
+    });
+  }
+  await applyCountryFilter();
 }
 
 initializeWeatherOrb();
 renderLoading();
+updateCountrySummary(0, 0);
 loadCountries().catch((err) => {
   console.error("Failed to load country data:", err);
   renderError();
+  if (countryUi.summary) countryUi.summary.textContent = "Could not load country data.";
 });
