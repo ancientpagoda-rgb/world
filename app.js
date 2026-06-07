@@ -501,6 +501,24 @@ async function toDaDisplay(input = "", language = "") {
 
 const englishTranslationCache = new Map();
 
+function splitSourceSuffix(text) {
+  const input = String(text || "").trim();
+  if (!input) return { body: "", suffix: "" };
+
+  const separators = [" - ", " — ", " | "];
+  for (const separator of separators) {
+    const index = input.lastIndexOf(separator);
+    if (index <= 20) continue;
+    const body = input.slice(0, index).trim();
+    const suffix = input.slice(index + separator.length).trim();
+    if (!body || !suffix) continue;
+    if (suffix.length > 80) continue;
+    return { body, suffix: `${separator}${suffix}` };
+  }
+
+  return { body: input, suffix: "" };
+}
+
 async function toEnglishDisplay(input = "", language = "") {
   const text = String(input || "").trim();
   if (!text) return "";
@@ -508,13 +526,16 @@ async function toEnglishDisplay(input = "", language = "") {
   const cacheKey = `${language || "auto"}::${text}`;
   if (englishTranslationCache.has(cacheKey)) return englishTranslationCache.get(cacheKey);
 
+  const { body, suffix } = splitSourceSuffix(text);
+  const sourceText = body || text;
+
   try {
     const url = new URL("https://translate.googleapis.com/translate_a/single");
     url.searchParams.set("client", "gtx");
-    url.searchParams.set("sl", language || "auto");
+    url.searchParams.set("sl", "auto");
     url.searchParams.set("tl", "en");
     url.searchParams.set("dt", "t");
-    url.searchParams.set("q", text);
+    url.searchParams.set("q", sourceText);
 
     const data = await fetch(url.toString()).then((res) => res.json());
     const translated = Array.isArray(data?.[0])
@@ -524,15 +545,17 @@ async function toEnglishDisplay(input = "", language = "") {
           .trim()
       : "";
     if (translated) {
-      englishTranslationCache.set(cacheKey, translated);
-      return translated;
+      const merged = `${translated}${suffix}`.trim();
+      englishTranslationCache.set(cacheKey, merged);
+      return merged;
     }
   } catch (err) {
     console.warn("English translation fallback:", err);
   }
 
-  englishTranslationCache.set(cacheKey, text);
-  return text;
+  const fallback = `${sourceText}${suffix}`.trim();
+  englishTranslationCache.set(cacheKey, fallback);
+  return fallback;
 }
 
 const STARS_URL = "./stars.json";
