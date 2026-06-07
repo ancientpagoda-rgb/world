@@ -13,11 +13,16 @@ body {
   top: 10px;
   left: 12px;
   z-index: 5;
+  display: none;
   font: 12px/1.2 "IBM Plex Mono", monospace;
   color: rgba(200, 220, 245, 0.62);
   pointer-events: none;
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
   white-space: pre-line;
+}
+
+.debug-mode .build-tag {
+  display: block;
 }
 
 .rasters-toggle {
