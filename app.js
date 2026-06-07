@@ -2205,9 +2205,11 @@ function renderStarfield(timeMs) {
   const dpr = Math.min(window.devicePixelRatio || 1, STARFIELD_MAX_DPR);
   const w = Math.round(window.innerWidth);
   const h = Math.round(window.innerHeight);
-  if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
+  const targetWidth = Math.round(w * dpr);
+  const targetHeight = Math.round(h * dpr);
+  if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
   }
 
   // Throttle starfield rendering; it's the most expensive full-screen layer.
