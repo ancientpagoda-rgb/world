@@ -2013,61 +2013,11 @@ let globeZoom = 1;
 let globeDrag = { active: false, startX: 0, startY: 0, startRotY: 0, startRotX: 0 };
 
 function setupGlobeInteraction(canvas) {
-  const onStart = (clientX, clientY) => {
-    globeDrag.active = true;
-    globeDrag.startX = clientX;
-    globeDrag.startY = clientY;
-    globeDrag.startRotY = globeRotY;
-    globeDrag.startRotX = globeRotX;
-  };
-  const onMove = (clientX, clientY) => {
-    if (!globeDrag.active) return;
-    const rect = canvas.getBoundingClientRect();
-    const w = rect.width;
-    const dx = clientX - globeDrag.startX;
-    // Grab-and-drag feel: drag right -> texture moves right.
-    globeRotY = globeDrag.startRotY + (dx / w) * Math.PI * 2;
-    globeRotX = 0;
-  };
-  const onEnd = () => { globeDrag.active = false; };
-
-  canvas.addEventListener("mousedown", (e) => onStart(e.clientX, e.clientY));
-  window.addEventListener("mousemove", (e) => onMove(e.clientX, e.clientY));
-  window.addEventListener("mouseup", onEnd);
-
-  canvas.addEventListener("wheel", (e) => {
-    e.preventDefault();
-    globeZoom *= Math.exp(-e.deltaY * 0.001);
-    globeZoom = Math.max(0.3, Math.min(4, globeZoom));
-  }, { passive: false });
-
-  let pinchDist = 0;
-  canvas.addEventListener("touchstart", (e) => {
-    if (e.touches.length === 1) onStart(e.touches[0].clientX, e.touches[0].clientY);
-    if (e.touches.length === 2) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      pinchDist = Math.sqrt(dx * dx + dy * dy);
-    }
-  }, { passive: true });
-  canvas.addEventListener("touchmove", (e) => {
-    if (e.touches.length === 1) onMove(e.touches[0].clientX, e.touches[0].clientY);
-    if (e.touches.length === 2) {
-      e.preventDefault();
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (pinchDist > 0) {
-        globeZoom *= dist / pinchDist;
-        globeZoom = Math.max(0.3, Math.min(4, globeZoom));
-      }
-      pinchDist = dist;
-    }
-  }, { passive: false });
-  canvas.addEventListener("touchend", (e) => {
-    if (e.touches.length < 2) pinchDist = 0;
-    if (e.touches.length === 0) onEnd();
-  }, { passive: true });
+  globeDrag.active = false;
+  globeRotY = 0;
+  globeRotX = 0;
+  globeZoom = 1;
+  return () => {};
 }
 
 function drawWeatherOrbFrame(ctx, canvas, timeMs) {
