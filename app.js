@@ -1115,14 +1115,6 @@ function _renderTexture3D(cache, data, ctx, cx, cy, r, rotY, rotX) {
 }
 
 function renderEarthTexture(ctx, cx, cy, r, rotY, rotX) {
-  if (_earthData) {
-    debugState.earthRenderMode = "pixels";
-    _renderTexture3D(_earthCache, _earthData, ctx, cx, cy, r, rotY, rotX);
-    return;
-  }
-
-  // If the image loaded but the canvas is tainted (can't read pixels),
-  // at least draw a simple cylindrical projection so we still show imagery.
   if (earthTexture.img) {
     debugState.earthRenderMode = "image";
     const img = earthTexture.img;
@@ -1150,47 +1142,11 @@ function renderEarthTexture(ctx, cx, cy, r, rotY, rotX) {
     ctx.drawImage(img, ox + xShift + drawW, oy, drawW, drawH);
     ctx.restore();
     return;
+  }
 
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, 6.2832);
-    ctx.clip();
-
-    // Map lon -> x across the texture, lat -> y.
-    // This is cheaper and avoids getImageData(), but ignores pitch rotation.
-    let srcX = (((rotY + Math.PI / 2) % (2 * Math.PI)) / (2 * Math.PI)) * iw;
-    if (srcX < 0) srcX += iw;
-    srcX = Math.round(srcX);
-    const halfIw = iw / 2;
-    const wrap = srcX + halfIw > iw;
-
-    const rI = Math.max(1, Math.round(r));
-    for (let dy = -rI; dy <= rI; dy++) {
-      const y = Math.round(cy + dy);
-      const sinP = dy / r;
-      if (Math.abs(sinP) >= 1) continue;
-      const cosP = Math.cos(Math.asin(sinP));
-      const sw = Math.round(2 * r * cosP);
-      if (sw < 2) continue;
-      const sy = Math.max(0, Math.min(ih - 1, Math.round(((Math.PI / 2 + Math.asin(sinP)) / Math.PI) * (ih - 1))));
-      const dx = Math.round(cx - sw / 2);
-
-      if (!wrap) {
-        ctx.drawImage(img, srcX, sy, halfIw, 1, dx, y, sw, 1);
-      } else {
-        const w1 = Math.round(iw - srcX);
-        const f = w1 / halfIw;
-        const dw1 = Math.round(sw * f);
-        if (dw1 > 0) {
-          ctx.drawImage(img, srcX, sy, w1, 1, dx, y, dw1, 1);
-          ctx.drawImage(img, 0, sy, halfIw - w1, 1, dx + dw1, y, sw - dw1, 1);
-        } else {
-          ctx.drawImage(img, 0, sy, halfIw, 1, dx, y, sw, 1);
-        }
-      }
-    }
-
-    ctx.restore();
+  if (_earthData) {
+    debugState.earthRenderMode = "pixels";
+    _renderTexture3D(_earthCache, _earthData, ctx, cx, cy, r, rotY, rotX);
     return;
   }
 
