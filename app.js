@@ -2055,6 +2055,11 @@ let globeRotY = 0;
 let globeRotX = 0;
 let globeZoom = 1;
 let globeDrag = { active: false, startX: 0, startY: 0, startRotY: 0, startRotX: 0 };
+let globeInteractionUntil = 0;
+
+function markGlobeInteraction(durationMs = 200) {
+  globeInteractionUntil = Math.max(globeInteractionUntil, Date.now() + durationMs);
+}
 
 function setupGlobeInteraction(canvas) {
   const onStart = (clientX, clientY) => {
@@ -2063,6 +2068,7 @@ function setupGlobeInteraction(canvas) {
     globeDrag.startY = clientY;
     globeDrag.startRotY = globeRotY;
     globeDrag.startRotX = globeRotX;
+    markGlobeInteraction(240);
   };
   const onMove = (clientX, clientY) => {
     if (!globeDrag.active) return;
@@ -2083,6 +2089,7 @@ function setupGlobeInteraction(canvas) {
     e.preventDefault();
     globeZoom *= Math.exp(-e.deltaY * 0.001);
     globeZoom = Math.max(0.3, Math.min(4, globeZoom));
+    markGlobeInteraction(240);
   }, { passive: false });
 
   let pinchDist = 0;
@@ -2104,6 +2111,7 @@ function setupGlobeInteraction(canvas) {
       if (pinchDist > 0) {
         globeZoom *= dist / pinchDist;
         globeZoom = Math.max(0.3, Math.min(4, globeZoom));
+        markGlobeInteraction(240);
       }
       pinchDist = dist;
     }
@@ -2229,7 +2237,8 @@ function drawWeatherOrbFrame(ctx, canvas, timeMs) {
 
   // Keep the globe opaque and avoid the glassy look from additive blending.
 
-  if (!globeDrag.active) {
+  const globeIsInteracting = globeDrag.active || Date.now() < globeInteractionUntil;
+  if (!globeIsInteracting) {
     // Expensive weather overlay: cache to an offscreen canvas and refresh at low FPS
     // or when rotation/zoom changes enough.
     const overlay = getWeatherOverlayOffscreen(canvas.width, canvas.height);
