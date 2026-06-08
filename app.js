@@ -2055,11 +2055,6 @@ let globeRotY = 0;
 let globeRotX = 0;
 let globeZoom = 1;
 let globeDrag = { active: false, startX: 0, startY: 0, startRotY: 0, startRotX: 0 };
-let globeInteractionUntil = 0;
-
-function markGlobeInteraction(durationMs = 200) {
-  globeInteractionUntil = Math.max(globeInteractionUntil, Date.now() + durationMs);
-}
 
 function setupGlobeInteraction(canvas) {
   const onStart = (clientX, clientY) => {
@@ -2068,7 +2063,6 @@ function setupGlobeInteraction(canvas) {
     globeDrag.startY = clientY;
     globeDrag.startRotY = globeRotY;
     globeDrag.startRotX = globeRotX;
-    markGlobeInteraction(240);
   };
   const onMove = (clientX, clientY) => {
     if (!globeDrag.active) return;
@@ -2089,7 +2083,6 @@ function setupGlobeInteraction(canvas) {
     e.preventDefault();
     globeZoom *= Math.exp(-e.deltaY * 0.001);
     globeZoom = Math.max(0.3, Math.min(4, globeZoom));
-    markGlobeInteraction(240);
   }, { passive: false });
 
   let pinchDist = 0;
@@ -2111,7 +2104,6 @@ function setupGlobeInteraction(canvas) {
       if (pinchDist > 0) {
         globeZoom *= dist / pinchDist;
         globeZoom = Math.max(0.3, Math.min(4, globeZoom));
-        markGlobeInteraction(240);
       }
       pinchDist = dist;
     }
@@ -2141,179 +2133,12 @@ function drawWeatherOrbFrame(ctx, canvas, timeMs) {
   const rotY = quantizeRotation(globeRotY);
   const rotX = quantizeRotation(globeRotX);
 
-  // Moon: approximate real position + phase based on current UTC time.
-  // Draw outside the orb, so it reads like a nearby companion body.
-  {
-    const nowMs = Date.now();
-    const d = (nowMs - J2000_MS) / 86400000;
-    const moonEq = computeMoonGeocentricEq(d);
-
-    // Sun vector from the cached celestial bodies (close enough for phase).
-    const bodies = getCelestialBodies();
-    const sunBody = bodies.find(b => b.sun);
-    const sunEqVec = sunBody ? eqToUnitVec(sunBody.ra, sunBody.dec) : { x: 0, y: 0, z: 1 };
-    const moonEqVec = eqToUnitVec(moonEq.ra, moonEq.dec);
-
-    const dot = Math.max(-1, Math.min(1, sunEqVec.x * moonEqVec.x + sunEqVec.y * moonEqVec.y + sunEqVec.z * moonEqVec.z));
-    const elong = Math.acos(dot); // 0=new, pi=full
-    const illum = clamp01((1 - Math.cos(elong)) * 0.5);
-
-    // Determine waxing/waning from the sign of the Moon's ecliptic longitude relative to the Sun.
-    // Using equatorial RA as a proxy works well enough for a visual cue.
-    const sunRa = sunBody ? sunBody.ra : 0;
-    const dRa = ((moonEq.ra - sunRa + Math.PI * 3) % (2 * Math.PI)) - Math.PI;
-    const waxing = dRa > 0;
-
-    const moonView = rotateVecToView(moonEqVec, rotY, rotX);
-    const sunView = rotateVecToView(sunEqVec, rotY, rotX);
-
-    // Place the Moon on a ring around the Earth based on its sky direction.
-    const moonDist = radius * 2.05;
-    const mx = centerX + moonView.x * moonDist;
-    const my = centerY - moonView.y * moonDist;
-
-    // Visual-but-plausible size: keep the Moon clearly readable but not dominant.
-    // (True scale would require placing it ~60 Earth radii away, off-screen.)
-    const distNorm = clamp01((moonEq.distKm - 356000) / (406000 - 356000));
-    const moonR = radius * lerp(0.032, 0.028, distNorm);
-
-    const moonToCenter = Math.sqrt((mx - centerX) ** 2 + (my - centerY) ** 2);
-    if (moonToCenter > radius * 1.15) {
-      // Soft glow
-      const gR = moonR * 2.6;
-      const mg = ctx.createRadialGradient(mx, my, 0, mx, my, gR);
-      mg.addColorStop(0, `rgba(255, 250, 240, ${0.14 + 0.10 * illum})`);
-      mg.addColorStop(1, "rgba(255, 250, 240, 0)");
-      ctx.fillStyle = mg;
-      ctx.beginPath();
-      ctx.arc(mx, my, gR, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Body
-      ctx.fillStyle = `rgba(232, 228, 218, ${0.78 + 0.12 * illum})`;
-      ctx.beginPath();
-      ctx.arc(mx, my, moonR, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Phase shading: a simple two-circle mask oriented by the Sun direction on the sky.
-      // This is not physically perfect, but tracks waxing/waning and terminator orientation.
-      const sx = sunView.x - moonView.x;
-      const sy = sunView.y - moonView.y;
-      const sLen = Math.sqrt(sx * sx + sy * sy) || 1;
-      const ux = sx / sLen;
-      const uy = sy / sLen;
-
-      // Offset amount maps illumination 0..1 into a disk intersection.
-      const offset = (1 - 2 * illum) * moonR;
-      const shadeX = mx - ux * offset;
-      const shadeY = my + uy * offset;
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(mx, my, moonR, 0, Math.PI * 2);
-      ctx.clip();
-      ctx.fillStyle = "rgba(4, 10, 18, 0.92)";
-      ctx.beginPath();
-      // Flip the mask for waxing vs waning.
-      const flip = waxing ? -1 : 1;
-      ctx.arc(shadeX + ux * moonR * 0.12 * flip, shadeY - uy * moonR * 0.12 * flip, moonR * 0.98, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-
-      // A tiny specular hint on the sunward side.
-      ctx.fillStyle = `rgba(255, 255, 255, ${0.10 * illum})`;
-      ctx.beginPath();
-      ctx.arc(mx + ux * moonR * 0.35, my - uy * moonR * 0.35, moonR * 0.22, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
   ctx.save();
   ctx.beginPath();
   ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
   ctx.clip();
 
   renderEarthTexture(ctx, centerX, centerY, radius, rotY, rotX);
-
-  // Keep the globe opaque and avoid the glassy look from additive blending.
-
-  const globeIsInteracting = globeDrag.active || Date.now() < globeInteractionUntil;
-  if (!globeIsInteracting) {
-    // Expensive weather overlay: cache to an offscreen canvas and refresh at low FPS
-    // or when rotation/zoom changes enough.
-    const overlay = getWeatherOverlayOffscreen(canvas.width, canvas.height);
-    const oqy = quantizeRotation(rotY);
-    const oqx = quantizeRotation(rotX);
-    const refreshEveryMs = 1000 / WEATHER_OVERLAY_FPS;
-    const needsRebuild =
-      weatherOverlayCache.qRotY !== oqy ||
-      weatherOverlayCache.qRotX !== oqx ||
-      Math.abs(weatherOverlayCache.radius - radius) > 0.5 ||
-      timeMs - weatherOverlayCache.lastDrawMs > refreshEveryMs;
-
-    if (needsRebuild) {
-      const octx = overlay.getContext("2d");
-      octx.clearRect(0, 0, overlay.width, overlay.height);
-      octx.save();
-      octx.beginPath();
-      octx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-      octx.clip();
-
-      // Light gridlines (very subtle)
-      octx.strokeStyle = "rgba(120, 160, 200, 0.045)";
-      octx.lineWidth = 0.55;
-      for (let lat = -60; lat <= 60; lat += 30) {
-        octx.beginPath();
-        let started = false;
-        for (let lon = -180; lon <= 180; lon += 4) {
-          const point = latLonProjection(lat, lon, oqy, oqx);
-          if (point.z <= 0) { started = false; continue; }
-          const x = centerX + point.x * radius;
-          const y = centerY - point.y * radius;
-          if (!started) { octx.moveTo(x, y); started = true; }
-          else octx.lineTo(x, y);
-        }
-        octx.stroke();
-      }
-
-      drawWeatherLayers(octx, oqy, oqx, radius, centerX, centerY, timeMs);
-      octx.restore();
-
-      weatherOverlayCache.qRotY = oqy;
-      weatherOverlayCache.qRotX = oqx;
-      weatherOverlayCache.radius = radius;
-      weatherOverlayCache.lastDrawMs = timeMs;
-    }
-
-    ctx.drawImage(overlay, 0, 0);
-    drawWindParticles(ctx, rotY, rotX, radius, centerX, centerY, timeMs);
-
-    // Night mode is disabled entirely to avoid dark artifacts near the poles.
-    {
-      for (const [clat, clon, cpop] of CITIES) {
-        const point = latLonProjection(clat, clon, rotY, rotX);
-        if (point.z <= 0 || point.x >= 0) continue;
-        const sx = centerX + point.x * radius;
-        const sy = centerY - point.y * radius;
-        const popFactor = Math.log2(cpop + 1) / 5.5;
-        const glowR = lerp(2.5, 9, popFactor) * (0.65 + 0.35 * point.z);
-        const coreR = lerp(0.4, 2.2, popFactor) * (0.65 + 0.35 * point.z);
-        const twinkle = 0.8 + 0.2 * Math.sin(timeMs * 0.001 * (7 + cpop % 13) + clon);
-        const glow = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
-        glow.addColorStop(0, `rgba(255, 245, 210, ${(0.22 * LOFI_GLOW_INTENSITY) * twinkle})`);
-        glow.addColorStop(0.4, `rgba(255, 220, 160, ${(0.08 * LOFI_GLOW_INTENSITY) * twinkle})`);
-        glow.addColorStop(1, "rgba(255, 220, 160, 0)");
-        ctx.fillStyle = glow;
-        ctx.beginPath();
-        ctx.arc(sx, sy, glowR, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = `rgba(255, 250, 235, ${(0.55 * LOFI_GLOW_INTENSITY) * twinkle})`;
-        ctx.beginPath();
-        ctx.arc(sx, sy, coreR, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-  }
 
   ctx.restore();
 
@@ -2482,14 +2307,8 @@ function initializeWeatherOrb() {
   window.addEventListener("resize", resizeOrb);
 
   loadEarthTexture();
-  loadWeatherRasters();
   loadStarCatalog();
   loadWeatherGeometry();
-  loadNoaaWeatherGrid().catch((err) => {
-    console.warn("NOAA grid load failed", err);
-    weatherOrbState.weatherGrid = new Map();
-    weatherOrbState.weatherSource = "Weather grid unavailable";
-  });
 
   setupGlobeInteraction(canvas);
 

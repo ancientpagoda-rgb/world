@@ -3,16 +3,7 @@ import {
   globeRotX,
   globeZoom,
   earthTextureImage,
-  celestialBodies,
 } from "./state.js";
-
-function smoothstep(t) {
-  return t * t * (3 - 2 * t);
-}
-
-function rgba(color, alpha) {
-  return `rgba(${color[0]},${color[1]},${color[2]},${alpha})`;
-}
 
 function renderEarthTexture(ctx, cx, cy, r, rotation) {
   const img = earthTextureImage;
@@ -66,10 +57,6 @@ export function drawWeatherOrbFrame(ctx, canvas, timeMs) {
   ctx.fill();
 
   const rotY = globeRotY, rotX = globeRotX;
-  const moonAngle = timeMs * 0.00003;
-  const moonDist = radius * 2;
-  const moonX = centerX + Math.cos(moonAngle) * moonDist;
-  const moonY = centerY + Math.sin(moonAngle) * moonDist * 0.6 - radius * 0.6;
 
   // Clip to globe circle — everything below stays inside
   ctx.save();
@@ -81,32 +68,4 @@ export function drawWeatherOrbFrame(ctx, canvas, timeMs) {
   renderEarthTexture(ctx, centerX, centerY, radius, rotY);
 
   ctx.restore(); // remove clip
-
-  // Weather layer indicator
-  const cycle = timeMs / 5200;
-  const currentIndex = Math.floor(cycle) % 4;
-  const nextIndex = (currentIndex + 1) % 4;
-  const transition = smoothstep(cycle % 1);
-  const layerNames = ["temperature", "rainfall", "clouds", "wind"];
-  const currentLayer = layerNames[currentIndex];
-  const nextLayer = layerNames[nextIndex];
-
-  const infoY = centerY + radius + 20;
-  ctx.fillStyle = "rgba(200, 220, 240, 0.35)";
-  ctx.font = "11px 'IBM Plex Mono', monospace";
-  ctx.textAlign = "center";
-  const label = currentLayer.charAt(0).toUpperCase() + currentLayer.slice(1);
-  ctx.fillText(label, centerX, infoY);
-
-  // Moon
-  ctx.save();
-  const moonGrad = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, 4);
-  moonGrad.addColorStop(0, "rgba(220, 220, 230, 0.32)");
-  moonGrad.addColorStop(0.5, "rgba(180, 180, 200, 0.12)");
-  moonGrad.addColorStop(1, "rgba(180, 180, 200, 0)");
-  ctx.fillStyle = moonGrad;
-  ctx.beginPath();
-  ctx.arc(moonX, moonY, 4, 0, 6.2832);
-  ctx.fill();
-  ctx.restore();
 }
