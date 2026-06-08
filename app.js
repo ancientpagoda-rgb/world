@@ -2229,78 +2229,80 @@ function drawWeatherOrbFrame(ctx, canvas, timeMs) {
 
   // Keep the globe opaque and avoid the glassy look from additive blending.
 
-  // Expensive weather overlay: cache to an offscreen canvas and refresh at low FPS
-  // or when rotation/zoom changes enough.
-  const overlay = getWeatherOverlayOffscreen(canvas.width, canvas.height);
-  const oqy = quantizeRotation(rotY);
-  const oqx = quantizeRotation(rotX);
-  const refreshEveryMs = 1000 / WEATHER_OVERLAY_FPS;
-  const needsRebuild =
-    weatherOverlayCache.qRotY !== oqy ||
-    weatherOverlayCache.qRotX !== oqx ||
-    Math.abs(weatherOverlayCache.radius - radius) > 0.5 ||
-    timeMs - weatherOverlayCache.lastDrawMs > refreshEveryMs;
+  if (!globeDrag.active) {
+    // Expensive weather overlay: cache to an offscreen canvas and refresh at low FPS
+    // or when rotation/zoom changes enough.
+    const overlay = getWeatherOverlayOffscreen(canvas.width, canvas.height);
+    const oqy = quantizeRotation(rotY);
+    const oqx = quantizeRotation(rotX);
+    const refreshEveryMs = 1000 / WEATHER_OVERLAY_FPS;
+    const needsRebuild =
+      weatherOverlayCache.qRotY !== oqy ||
+      weatherOverlayCache.qRotX !== oqx ||
+      Math.abs(weatherOverlayCache.radius - radius) > 0.5 ||
+      timeMs - weatherOverlayCache.lastDrawMs > refreshEveryMs;
 
-  if (needsRebuild) {
-    const octx = overlay.getContext("2d");
-    octx.clearRect(0, 0, overlay.width, overlay.height);
-    octx.save();
-    octx.beginPath();
-    octx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-    octx.clip();
-
-    // Light gridlines (very subtle)
-    octx.strokeStyle = "rgba(120, 160, 200, 0.045)";
-    octx.lineWidth = 0.55;
-    for (let lat = -60; lat <= 60; lat += 30) {
+    if (needsRebuild) {
+      const octx = overlay.getContext("2d");
+      octx.clearRect(0, 0, overlay.width, overlay.height);
+      octx.save();
       octx.beginPath();
-      let started = false;
-      for (let lon = -180; lon <= 180; lon += 4) {
-        const point = latLonProjection(lat, lon, oqy, oqx);
-        if (point.z <= 0) { started = false; continue; }
-        const x = centerX + point.x * radius;
-        const y = centerY - point.y * radius;
-        if (!started) { octx.moveTo(x, y); started = true; }
-        else octx.lineTo(x, y);
+      octx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+      octx.clip();
+
+      // Light gridlines (very subtle)
+      octx.strokeStyle = "rgba(120, 160, 200, 0.045)";
+      octx.lineWidth = 0.55;
+      for (let lat = -60; lat <= 60; lat += 30) {
+        octx.beginPath();
+        let started = false;
+        for (let lon = -180; lon <= 180; lon += 4) {
+          const point = latLonProjection(lat, lon, oqy, oqx);
+          if (point.z <= 0) { started = false; continue; }
+          const x = centerX + point.x * radius;
+          const y = centerY - point.y * radius;
+          if (!started) { octx.moveTo(x, y); started = true; }
+          else octx.lineTo(x, y);
+        }
+        octx.stroke();
       }
-      octx.stroke();
+
+      drawWeatherLayers(octx, oqy, oqx, radius, centerX, centerY, timeMs);
+      octx.restore();
+
+      weatherOverlayCache.qRotY = oqy;
+      weatherOverlayCache.qRotX = oqx;
+      weatherOverlayCache.radius = radius;
+      weatherOverlayCache.lastDrawMs = timeMs;
     }
 
-    drawWeatherLayers(octx, oqy, oqx, radius, centerX, centerY, timeMs);
-    octx.restore();
+    ctx.drawImage(overlay, 0, 0);
+    drawWindParticles(ctx, rotY, rotX, radius, centerX, centerY, timeMs);
 
-    weatherOverlayCache.qRotY = oqy;
-    weatherOverlayCache.qRotX = oqx;
-    weatherOverlayCache.radius = radius;
-    weatherOverlayCache.lastDrawMs = timeMs;
-  }
-
-  ctx.drawImage(overlay, 0, 0);
-  drawWindParticles(ctx, rotY, rotX, radius, centerX, centerY, timeMs);
-
-  // Night mode is disabled entirely to avoid dark artifacts near the poles.
-  {
-    for (const [clat, clon, cpop] of CITIES) {
-      const point = latLonProjection(clat, clon, rotY, rotX);
-      if (point.z <= 0 || point.x >= 0) continue;
-      const sx = centerX + point.x * radius;
-      const sy = centerY - point.y * radius;
-      const popFactor = Math.log2(cpop + 1) / 5.5;
-      const glowR = lerp(2.5, 9, popFactor) * (0.65 + 0.35 * point.z);
-      const coreR = lerp(0.4, 2.2, popFactor) * (0.65 + 0.35 * point.z);
-      const twinkle = 0.8 + 0.2 * Math.sin(timeMs * 0.001 * (7 + cpop % 13) + clon);
-      const glow = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
-      glow.addColorStop(0, `rgba(255, 245, 210, ${(0.22 * LOFI_GLOW_INTENSITY) * twinkle})`);
-      glow.addColorStop(0.4, `rgba(255, 220, 160, ${(0.08 * LOFI_GLOW_INTENSITY) * twinkle})`);
-      glow.addColorStop(1, "rgba(255, 220, 160, 0)");
-      ctx.fillStyle = glow;
-      ctx.beginPath();
-      ctx.arc(sx, sy, glowR, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = `rgba(255, 250, 235, ${(0.55 * LOFI_GLOW_INTENSITY) * twinkle})`;
-      ctx.beginPath();
-      ctx.arc(sx, sy, coreR, 0, Math.PI * 2);
-      ctx.fill();
+    // Night mode is disabled entirely to avoid dark artifacts near the poles.
+    {
+      for (const [clat, clon, cpop] of CITIES) {
+        const point = latLonProjection(clat, clon, rotY, rotX);
+        if (point.z <= 0 || point.x >= 0) continue;
+        const sx = centerX + point.x * radius;
+        const sy = centerY - point.y * radius;
+        const popFactor = Math.log2(cpop + 1) / 5.5;
+        const glowR = lerp(2.5, 9, popFactor) * (0.65 + 0.35 * point.z);
+        const coreR = lerp(0.4, 2.2, popFactor) * (0.65 + 0.35 * point.z);
+        const twinkle = 0.8 + 0.2 * Math.sin(timeMs * 0.001 * (7 + cpop % 13) + clon);
+        const glow = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
+        glow.addColorStop(0, `rgba(255, 245, 210, ${(0.22 * LOFI_GLOW_INTENSITY) * twinkle})`);
+        glow.addColorStop(0.4, `rgba(255, 220, 160, ${(0.08 * LOFI_GLOW_INTENSITY) * twinkle})`);
+        glow.addColorStop(1, "rgba(255, 220, 160, 0)");
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(sx, sy, glowR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = `rgba(255, 250, 235, ${(0.55 * LOFI_GLOW_INTENSITY) * twinkle})`;
+        ctx.beginPath();
+        ctx.arc(sx, sy, coreR, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   }
 
