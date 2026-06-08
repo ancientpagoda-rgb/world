@@ -1116,48 +1116,30 @@ function _renderTexture3D(cache, data, ctx, cx, cy, r, rotY, rotX) {
 
 function renderEarthTexture(ctx, cx, cy, r, rotY, rotX) {
   if (earthTexture.img) {
-    debugState.earthRenderMode = "image";
+    debugState.earthRenderMode = "static-image";
     const img = earthTexture.img;
     const iw = img.width;
     const ih = img.height;
+    const drawW = (2 * r) * (iw / ih);
+    const drawH = 2 * r;
+    const ox = cx - drawW / 2;
+    const oy = cy - drawH / 2;
 
-    // Extremely robust fallback: draw the equirectangular map clipped to a circle.
-    // If getImageData() is blocked (tainted canvas) this still shows satellite imagery.
-    // Note: ignores rotX and only approximates rotY.
     ctx.save();
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, 6.2832);
     ctx.clip();
-    const scale = (2 * r) / ih;
-    const drawW = iw * scale;
-    const drawH = ih * scale;
-    const ox = cx - drawW / 2;
-    const oy = cy - drawH / 2;
-    // Match the sign convention used by the per-pixel renderer (which uses -rotY).
-    const turn = ((rotY / (2 * Math.PI)) % 1 + 1) % 1;
-    const xShift = -turn * drawW;
-    // Draw 3 copies to ensure full coverage regardless of shift.
-    ctx.drawImage(img, ox + xShift - drawW, oy, drawW, drawH);
-    ctx.drawImage(img, ox + xShift, oy, drawW, drawH);
-    ctx.drawImage(img, ox + xShift + drawW, oy, drawW, drawH);
+    ctx.drawImage(img, ox, oy, drawW, drawH);
     ctx.restore();
-    return;
-  }
-
-  if (_earthData) {
-    debugState.earthRenderMode = "pixels";
-    _renderTexture3D(_earthCache, _earthData, ctx, cx, cy, r, rotY, rotX);
     return;
   }
 
   debugState.earthRenderMode = "fallback";
 
-  // Fallback: simple shaded sphere so the globe doesn't become a flat dark disk
-  // when the remote texture fails to load.
   const g = ctx.createRadialGradient(cx - r * 0.25, cy - r * 0.25, r * 0.15, cx, cy, r);
-  g.addColorStop(0, "rgba(40, 95, 150, 0.40)");
-  g.addColorStop(0.55, "rgba(14, 42, 70, 0.95)");
-  g.addColorStop(1, "rgba(6, 16, 28, 1)");
+  g.addColorStop(0, "rgba(70, 120, 170, 0.55)");
+  g.addColorStop(0.55, "rgba(22, 58, 94, 0.95)");
+  g.addColorStop(1, "rgba(8, 20, 34, 1)");
   ctx.fillStyle = g;
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, 6.2832);
@@ -2028,6 +2010,8 @@ function drawWeatherOrbFrame(ctx, canvas, timeMs) {
   const radius = Math.min(width, height) * 0.34 * globeZoom;
 
   ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#09131f";
+  ctx.fillRect(0, 0, width, height);
 
   // Base fill behind the texture (keeps dark theme, but avoids crushing blacks)
   ctx.fillStyle = "#0b253c";
@@ -2035,9 +2019,8 @@ function drawWeatherOrbFrame(ctx, canvas, timeMs) {
   ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
   ctx.fill();
 
-  // Quantize rotation for expensive texture projections.
-  const rotY = quantizeRotation(globeRotY);
-  const rotX = quantizeRotation(globeRotX);
+  const rotY = 0;
+  const rotX = 0;
 
   ctx.save();
   ctx.beginPath();

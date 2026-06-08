@@ -4,7 +4,7 @@ import {
   earthTextureImage,
 } from "./state.js";
 
-function renderEarthTexture(ctx, cx, cy, r, rotation) {
+function renderEarthTexture(ctx, cx, cy, r) {
   const img = earthTextureImage;
   if (!img) return;
 
@@ -14,16 +14,12 @@ function renderEarthTexture(ctx, cx, cy, r, rotation) {
   const drawH = 2 * r;
   const ox = cx - drawW / 2;
   const oy = cy - drawH / 2;
-  const turn = ((rotation / (2 * Math.PI)) % 1 + 1) % 1;
-  const xShift = -turn * drawW;
 
   ctx.save();
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.clip();
-  ctx.drawImage(img, ox + xShift - drawW, oy, drawW, drawH);
-  ctx.drawImage(img, ox + xShift, oy, drawW, drawH);
-  ctx.drawImage(img, ox + xShift + drawW, oy, drawW, drawH);
+  ctx.drawImage(img, ox, oy, drawW, drawH);
   ctx.restore();
 }
 
@@ -46,7 +42,10 @@ export function drawWeatherOrbFrame(ctx, canvas, timeMs) {
   const radius = Math.min(width, height) * 0.34 * globeZoom;
 
   ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#09131f";
+  ctx.fillRect(0, 0, width, height);
   drawFallbackSphere(ctx, centerX, centerY, radius);
 
-  renderEarthTexture(ctx, centerX, centerY, radius, globeRotY);
+  void globeRotY;
+  renderEarthTexture(ctx, centerX, centerY, radius);
 }
