@@ -31,8 +31,8 @@ LAYER_CANDIDATES = [
 ]
 
 # Keep it lofi (small + fast to download + good enough for the globe).
-WIDTH = 1024
-HEIGHT = 512
+WIDTH = 2048
+HEIGHT = 1024
 
 
 def try_fetch_for_date(day: str, layer: str) -> tuple[bytes | None, dict[str, str]]:

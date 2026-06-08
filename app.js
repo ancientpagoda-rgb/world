@@ -684,8 +684,8 @@ async function tryLoadLiveEarthTexture() {
         CRS: "EPSG:4326",
         BBOX: "-90,-180,90,180",
         FORMAT: "image/jpeg",
-        WIDTH: "1024",
-        HEIGHT: "512",
+        WIDTH: "2048",
+        HEIGHT: "1024",
         TIME: day,
       });
       const url = `${EARTH_SNAPSHOT_ENDPOINT}?${params.toString()}`;
@@ -875,9 +875,11 @@ function drawDebugHud(ctx, canvas) {
 
 function _renderTexture3DAlpha(cache, data, ctx, cx, cy, r, rotY, rotX, alphaMul) {
   if (!data) return;
-  const size = r * 2;
-  if (cache.r === r && cache.rotY === rotY && cache.rotX === rotX && cache.offscreen) {
-    ctx.drawImage(cache.offscreen, cx - r, cy - r);
+  if (!Number.isFinite(r) || r <= 0) return;
+  const size = Math.max(1, Math.round(r * 2));
+  const half = size / 2;
+  if (cache.size === size && cache.rotY === rotY && cache.rotX === rotX && cache.offscreen) {
+    ctx.drawImage(cache.offscreen, cx - half, cy - half);
     return;
   }
   if (!cache.offscreen || cache.offscreen.width !== size) {
@@ -886,17 +888,18 @@ function _renderTexture3DAlpha(cache, data, ctx, cx, cy, r, rotY, rotX, alphaMul
     cache.offscreen.height = size;
   }
   const octx = cache.offscreen.getContext("2d");
+  if (!octx) return;
   const imgData = octx.createImageData(size, size);
   const pixels = imgData.data;
   const d = data.data, iw = data.width, ih = data.height;
   const cY = Math.cos(-rotY), sY = Math.sin(-rotY);
   const cX = Math.cos(-rotX), sX = Math.sin(-rotX);
-  const invR = 1 / r;
+  const invR = 1 / half;
   const aMul = Number.isFinite(alphaMul) ? alphaMul : 1;
 
   for (let dy = 0; dy < size; dy++) {
     for (let dx = 0; dx < size; dx++) {
-      const px = (dx - r) * invR, py = (dy - r) * invR;
+      const px = (dx - half) * invR, py = (dy - half) * invR;
       const r2 = px * px + py * py;
       if (r2 > 1) continue;
       const pz = Math.sqrt(1 - r2);
@@ -923,10 +926,10 @@ function _renderTexture3DAlpha(cache, data, ctx, cx, cy, r, rotY, rotX, alphaMul
     }
   }
   octx.putImageData(imgData, 0, 0);
-  cache.r = r;
+  cache.size = size;
   cache.rotY = rotY;
   cache.rotX = rotX;
-  ctx.drawImage(cache.offscreen, cx - r, cy - r);
+  ctx.drawImage(cache.offscreen, cx - half, cy - half);
 }
 
 function renderWeatherTempRaster(ctx, cx, cy, r, rotY, rotX) {
@@ -959,9 +962,11 @@ function renderWeatherPrecipRaster(ctx, cx, cy, r, rotY, rotX) {
 
 function _renderTexture3D(cache, data, ctx, cx, cy, r, rotY, rotX) {
   if (!data) return;
-  const size = r * 2;
-  if (cache.r === r && cache.rotY === rotY && cache.rotX === rotX && cache.offscreen) {
-    ctx.drawImage(cache.offscreen, cx - r, cy - r);
+  if (!Number.isFinite(r) || r <= 0) return;
+  const size = Math.max(1, Math.round(r * 2));
+  const half = size / 2;
+  if (cache.size === size && cache.rotY === rotY && cache.rotX === rotX && cache.offscreen) {
+    ctx.drawImage(cache.offscreen, cx - half, cy - half);
     return;
   }
   if (!cache.offscreen || cache.offscreen.width !== size) {
@@ -970,6 +975,7 @@ function _renderTexture3D(cache, data, ctx, cx, cy, r, rotY, rotX) {
     cache.offscreen.height = size;
   }
   const octx = cache.offscreen.getContext("2d");
+  if (!octx) return;
   const imgData = octx.createImageData(size, size);
   const pixels = imgData.data;
   const d = data.data, iw = data.width, ih = data.height;
@@ -978,10 +984,10 @@ function _renderTexture3D(cache, data, ctx, cx, cy, r, rotY, rotX) {
   const lift = 6;
   const cY = Math.cos(-rotY), sY = Math.sin(-rotY);
   const cX = Math.cos(-rotX), sX = Math.sin(-rotX);
-  const invR = 1 / r;
+  const invR = 1 / half;
   for (let dy = 0; dy < size; dy++) {
     for (let dx = 0; dx < size; dx++) {
-      const px = (dx - r) * invR, py = (dy - r) * invR;
+      const px = (dx - half) * invR, py = (dy - half) * invR;
       const r2 = px * px + py * py;
       if (r2 > 1) continue;
       const pz = Math.sqrt(1 - r2);
@@ -1009,10 +1015,10 @@ function _renderTexture3D(cache, data, ctx, cx, cy, r, rotY, rotX) {
     }
   }
   octx.putImageData(imgData, 0, 0);
-  cache.r = r;
+  cache.size = size;
   cache.rotY = rotY;
   cache.rotX = rotX;
-  ctx.drawImage(cache.offscreen, cx - r, cy - r);
+  ctx.drawImage(cache.offscreen, cx - half, cy - half);
 }
 
 function renderEarthTexture(ctx, cx, cy, r, rotY, rotX) {
