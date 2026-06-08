@@ -304,34 +304,32 @@ async function loadLiveWeatherGrid() {
 function renderEarthTexture(ctx, cx, cy, r, rotation) {
   const img = earthTextureImage;
   if (!img) return;
-  const iw = img.width, ih = img.height;
-  const halfIw = iw / 2;
-  let srcX = (rotation + Math.PI / 2) % (2 * Math.PI) / (2 * Math.PI) * iw;
-  if (srcX < 0) srcX += iw;
-  const wrap = srcX + halfIw > iw;
-  for (let dy = -r; dy <= r; dy++) {
-    const y = cy + dy;
-    const sinP = dy / r;
-    if (Math.abs(sinP) >= 1) continue;
-    const cosP = Math.cos(Math.asin(sinP));
-    const sw = Math.round(2 * r * cosP);
-    if (sw < 2) continue;
-    const sy = (Math.PI / 2 + Math.asin(sinP)) / Math.PI * ih;
-    const dx = Math.round(cx - sw / 2);
-    if (!wrap) {
-      ctx.drawImage(img, srcX, sy, halfIw, 1, dx, y, sw, 1);
-    } else {
-      const w1 = Math.round(iw - srcX);
-      const f = w1 / halfIw;
-      const dw1 = Math.round(sw * f);
-      if (dw1 > 0) {
-        ctx.drawImage(img, srcX, sy, w1, 1, dx, y, dw1, 1);
-        ctx.drawImage(img, 0, sy, halfIw - w1, 1, dx + dw1, y, sw - dw1, 1);
-      } else {
-        ctx.drawImage(img, 0, sy, halfIw, 1, dx, y, sw, 1);
-      }
-    }
-  }
+  const iw = img.width;
+  const ih = img.height;
+  const drawW = 2 * r * (iw / ih);
+  const drawH = 2 * r;
+  const ox = cx - drawW / 2;
+  const oy = cy - drawH / 2;
+  const turn = (rotation / (2 * Math.PI) % 1 + 1) % 1;
+  const xShift = -turn * drawW;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.drawImage(img, ox + xShift - drawW, oy, drawW, drawH);
+  ctx.drawImage(img, ox + xShift, oy, drawW, drawH);
+  ctx.drawImage(img, ox + xShift + drawW, oy, drawW, drawH);
+  ctx.restore();
+}
+function drawFallbackSphere(ctx, cx, cy, r) {
+  const g = ctx.createRadialGradient(cx - r * 0.25, cy - r * 0.25, r * 0.15, cx, cy, r);
+  g.addColorStop(0, "rgba(70, 120, 170, 0.55)");
+  g.addColorStop(0.55, "rgba(22, 58, 94, 0.95)");
+  g.addColorStop(1, "rgba(8, 20, 34, 1)");
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
 }
 function drawWeatherOrbFrame(ctx, canvas, timeMs) {
   const width = canvas.width;
@@ -340,17 +338,8 @@ function drawWeatherOrbFrame(ctx, canvas, timeMs) {
   const centerY = height / 2;
   const radius = Math.min(width, height) * 0.34 * globeZoom;
   ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = "#0b253c";
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, radius, 0, 6.2832);
-  ctx.fill();
-  const rotY = globeRotY, rotX = globeRotX;
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, radius, 0, 6.2832);
-  ctx.clip();
-  renderEarthTexture(ctx, centerX, centerY, radius, rotY);
-  ctx.restore();
+  drawFallbackSphere(ctx, centerX, centerY, radius);
+  renderEarthTexture(ctx, centerX, centerY, radius, globeRotY);
 }
 
 // src/interaction.js
