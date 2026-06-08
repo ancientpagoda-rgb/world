@@ -3,10 +3,8 @@ import {
   globeRotX,
   globeZoom,
   earthTextureImage,
-  nightTextureImage,
   celestialBodies,
 } from "./state.js";
-import { drawWorldGeometry } from "./geometry.js";
 
 function smoothstep(t) {
   return t * t * (3 - 2 * t);
@@ -52,42 +50,6 @@ function renderEarthTexture(ctx, cx, cy, r, rotation) {
   }
 }
 
-function renderNightTexture(ctx, cx, cy, r, rotation) {
-  const img = nightTextureImage;
-  if (!img) return;
-  const iw = img.width, ih = img.height;
-  const halfIw = iw / 2;
-
-  let srcX = (((rotation + Math.PI / 2) % (2 * Math.PI)) / (2 * Math.PI)) * iw;
-  if (srcX < 0) srcX += iw;
-  const wrap = srcX + halfIw > iw;
-
-  for (let dy = -r; dy <= r; dy++) {
-    const y = cy + dy;
-    const sinP = dy / r;
-    if (Math.abs(sinP) >= 1) continue;
-    const cosP = Math.cos(Math.asin(sinP));
-    const sw = Math.round(2 * r * cosP);
-    if (sw < 2) continue;
-    const sy = (Math.PI / 2 + Math.asin(sinP)) / Math.PI * ih;
-    const dx = Math.round(cx - sw / 2);
-
-    if (!wrap) {
-      ctx.drawImage(img, srcX, sy, halfIw, 1, dx, y, sw, 1);
-    } else {
-      const w1 = Math.round(iw - srcX);
-      const f = w1 / halfIw;
-      const dw1 = Math.round(sw * f);
-      if (dw1 > 0) {
-        ctx.drawImage(img, srcX, sy, w1, 1, dx, y, dw1, 1);
-        ctx.drawImage(img, 0, sy, halfIw - w1, 1, dx + dw1, y, sw - dw1, 1);
-      } else {
-        ctx.drawImage(img, 0, sy, halfIw, 1, dx, y, sw, 1);
-      }
-    }
-  }
-}
-
 export function drawWeatherOrbFrame(ctx, canvas, timeMs) {
   const width = canvas.width;
   const height = canvas.height;
@@ -97,8 +59,8 @@ export function drawWeatherOrbFrame(ctx, canvas, timeMs) {
 
   ctx.clearRect(0, 0, width, height);
 
-  // Solid dark base for the globe
-  ctx.fillStyle = "#111418";
+  // Base sphere fill so the globe reads as a lit object, not a flat cutout.
+  ctx.fillStyle = "#0b253c";
   ctx.beginPath();
   ctx.arc(centerX, centerY, radius, 0, 6.2832);
   ctx.fill();
@@ -118,95 +80,7 @@ export function drawWeatherOrbFrame(ctx, canvas, timeMs) {
   // Earth satellite texture (opaque scanlines)
   renderEarthTexture(ctx, centerX, centerY, radius, rotY);
 
-  // Earth core glow (additive, visible through the earth)
-  const coreLayers = [
-    { inner: 0.00, outer: 0.19, c: [255, 240, 180], a: 0.10 },
-    { inner: 0.19, outer: 0.55, c: [255, 180, 80], a: 0.06 },
-    { inner: 0.55, outer: 0.98, c: [200, 100, 50], a: 0.04 },
-  ];
-  ctx.save();
-  ctx.globalCompositeOperation = "lighter";
-  for (const l of coreLayers) {
-    const g = ctx.createRadialGradient(centerX, centerY, radius * l.inner, centerX, centerY, radius * l.outer);
-    g.addColorStop(0, rgba(l.c, l.a));
-    g.addColorStop(0.5, rgba(l.c, l.a * 0.5));
-    g.addColorStop(1, rgba(l.c, 0));
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius * l.outer, 0, 6.2832);
-    ctx.arc(centerX, centerY, radius * l.inner, 0, 6.2832, true);
-    ctx.closePath();
-    ctx.fill();
-  }
-  ctx.restore();
-
-  // Country borders
-  drawWorldGeometry(ctx, rotY, rotX, radius, centerX, centerY);
-
-  // Edge shading
-  const shade = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-  shade.addColorStop(0, "rgba(0, 0, 0, 0)");
-  shade.addColorStop(0.75, "rgba(0, 0, 0, 0.05)");
-  shade.addColorStop(1, "rgba(0, 0, 0, 0.20)");
-  ctx.fillStyle = shade;
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, radius, 0, 6.2832);
-  ctx.fill();
-
   ctx.restore(); // remove clip
-
-  // Night lights (outside clip, full canvas)
-  let sunSx = -0.3, sunSy = 0;
-  if (celestialBodies) {
-    const sunBody = celestialBodies.find(b => b.sun);
-    if (sunBody) {
-      const ra = sunBody.ra, dec = sunBody.dec;
-      const cDec = Math.cos(dec);
-      const swx = cDec * Math.sin(ra);
-      const swy = Math.sin(dec);
-      const swz = cDec * Math.cos(ra);
-      const cX = Math.cos(rotX), sX = Math.sin(rotX);
-      const rx_y = swy * cX + swz * sX;
-      const rx_z = -swy * sX + swz * cX;
-      const cY = Math.cos(rotY), sY = Math.sin(rotY);
-      const rv_x = swx * cY - rx_z * sY;
-      const rv_y = rx_y;
-      const len = Math.sqrt(rv_x * rv_x + rv_y * rv_y);
-      if (len > 0.001) { sunSx = rv_x / len; sunSy = rv_y / len; }
-    }
-  }
-  if (nightTextureImage) {
-    const w = canvas.width;
-    const h = canvas.height;
-    const nc = document.createElement("canvas");
-    nc.width = w;
-    nc.height = h;
-    const nctx = nc.getContext("2d");
-
-    nctx.save();
-    nctx.beginPath();
-    nctx.arc(centerX, centerY, radius, 0, 6.2832);
-    nctx.clip();
-    renderNightTexture(nctx, centerX, centerY, radius, rotY);
-    nctx.restore();
-
-    const maskGrad = nctx.createLinearGradient(
-      centerX - sunSx * radius, centerY - sunSy * radius,
-      centerX + sunSx * radius, centerY + sunSy * radius
-    );
-    maskGrad.addColorStop(0, "rgba(255, 255, 255, 0.88)");
-    maskGrad.addColorStop(0.4, "rgba(255, 255, 255, 0.65)");
-    maskGrad.addColorStop(0.7, "rgba(255, 255, 255, 0.25)");
-    maskGrad.addColorStop(1, "rgba(255, 255, 255, 0)");
-    nctx.globalCompositeOperation = "destination-in";
-    nctx.fillStyle = maskGrad;
-    nctx.fillRect(0, 0, w, h);
-    nctx.globalCompositeOperation = "source-over";
-
-    ctx.globalCompositeOperation = "lighter";
-    ctx.drawImage(nc, 0, 0);
-    ctx.globalCompositeOperation = "source-over";
-  }
 
   // Weather layer indicator
   const cycle = timeMs / 5200;
@@ -226,13 +100,13 @@ export function drawWeatherOrbFrame(ctx, canvas, timeMs) {
 
   // Moon
   ctx.save();
-  const moonGrad = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, 6);
-  moonGrad.addColorStop(0, "rgba(200, 200, 210, 0.5)");
-  moonGrad.addColorStop(0.5, "rgba(180, 180, 200, 0.2)");
+  const moonGrad = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, 4);
+  moonGrad.addColorStop(0, "rgba(220, 220, 230, 0.32)");
+  moonGrad.addColorStop(0.5, "rgba(180, 180, 200, 0.12)");
   moonGrad.addColorStop(1, "rgba(180, 180, 200, 0)");
   ctx.fillStyle = moonGrad;
   ctx.beginPath();
-  ctx.arc(moonX, moonY, 6, 0, 6.2832);
+  ctx.arc(moonX, moonY, 4, 0, 6.2832);
   ctx.fill();
   ctx.restore();
 }

@@ -348,13 +348,21 @@ main {
 .syllable,
 .translation {
   display: inline-block;
-  padding: 0.04em 0.42em;
-  margin: 0 0.06em;
+  padding: 0.03em 0.34em;
+  margin: 0 0.04em;
   border-radius: 999px;
   --seg-color: 210 230 255;
   color: rgb(var(--seg-color) / 0.92);
   background: rgb(var(--seg-color) / 0.1);
   box-shadow: inset 0 0 0 1px rgb(var(--seg-color) / 0.18);
+}
+
+.syllable {
+  letter-spacing: 0.01em;
+}
+
+.translation {
+  background: rgb(var(--seg-color) / 0.08);
 }
 
 .news-original {

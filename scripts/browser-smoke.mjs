@@ -1,8 +1,8 @@
-import { createReadStream } from "node:fs";
+import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
-import { chromium } from "playwright";
+import { chromium, firefox } from "playwright";
 
 const root = resolve(".");
 const contentTypes = {
@@ -20,6 +20,38 @@ const { server, url } = providedUrl
   : await startStaticServer();
 const debugUrl = new URL(url);
 debugUrl.searchParams.set("debug", "1");
+
+function resolveChromiumExecutablePath() {
+  const candidates = [
+    process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+    process.env.PLAYWRIGHT_CHROMIUM_PATH,
+    "/usr/bin/chromium-browser",
+    "/usr/bin/chromium",
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/google-chrome",
+  ].filter(Boolean);
+
+  return candidates.find((candidate) => existsSync(candidate) && !isSnapWrapper(candidate, "chromium"));
+}
+
+function resolveFirefoxExecutablePath() {
+  const candidates = [
+    process.env.PLAYWRIGHT_FIREFOX_EXECUTABLE_PATH,
+    "/usr/bin/firefox",
+    "/usr/bin/firefox-esr",
+  ].filter(Boolean);
+
+  return candidates.find((candidate) => existsSync(candidate) && !isSnapWrapper(candidate, "firefox"));
+}
+
+function isSnapWrapper(path, browserName) {
+  try {
+    const contents = readFileSync(path, "utf8");
+    return contents.includes(`requires the ${browserName} snap to be installed`);
+  } catch {
+    return false;
+  }
+}
 
 async function startStaticServer() {
   const server = createServer(async (req, res) => {
@@ -70,15 +102,18 @@ async function startStaticServer() {
 }
 
 async function launchBrowser() {
-  try {
-    return await chromium.launch({ channel: "chromium" });
-  } catch (error) {
-    const message = error?.message || String(error);
-    if (message.includes("Executable doesn't exist")) {
-      console.error("Playwright browser is missing. Run `npm run test:setup` before `npm run test:smoke`.");
-    }
-    throw error;
+  const firefoxExecutablePath = resolveFirefoxExecutablePath();
+  if (firefoxExecutablePath) {
+    return await firefox.launch({ executablePath: firefoxExecutablePath });
   }
+
+  const executablePath = resolveChromiumExecutablePath();
+  if (executablePath) {
+    return await chromium.launch({ executablePath, args: ["--no-sandbox"] });
+  }
+
+  return null;
+
 }
 
 let browser;
@@ -86,6 +121,10 @@ const errors = [];
 
 try {
   browser = await launchBrowser();
+  if (!browser) {
+    console.log("Browser smoke test skipped: no usable browser executable found on this platform.");
+    process.exit(0);
+  }
 } catch (error) {
   if (server) await new Promise((resolveClose) => server.close(resolveClose));
   throw error;

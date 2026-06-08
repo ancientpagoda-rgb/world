@@ -28,12 +28,10 @@ var GlobeWidget = (() => {
 
   // src/state.js
   var EARTH_TEXTURE_URL = "https://unpkg.com/three-globe@2.31.0/example/img/earth-blue-marble.jpg";
-  var NIGHT_TEXTURE_URL = "https://unpkg.com/three-globe@2.31.0/example/img/earth-night.jpg";
   var STARS_URL = "./stars.json";
   function setStarsUrl(url) {
     STARS_URL = url;
   }
-  var WORLD_GEOJSON_URL = "https://unpkg.com/visionscarto-world-atlas@0.0.4/world/50m_countries.geojson";
   var WEATHER_API_BASE = "https://api.open-meteo.com/v1/forecast";
   var weatherOrbState = {
     loading: false,
@@ -67,10 +65,6 @@ var GlobeWidget = (() => {
   var earthTextureImage = null;
   function setEarthTexture(img) {
     earthTextureImage = img;
-  }
-  var nightTextureImage = null;
-  function setNightTexture(img) {
-    nightTextureImage = img;
   }
   var STAR_CATALOG = [];
   function setStarCatalog(c) {
@@ -301,115 +295,6 @@ var GlobeWidget = (() => {
     img.onload = () => setEarthTexture(img);
     img.onerror = () => setEarthTexture(null);
   }
-  function loadNightTexture() {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.src = NIGHT_TEXTURE_URL;
-    img.onload = () => setNightTexture(img);
-    img.onerror = () => setNightTexture(null);
-  }
-
-  // src/geometry.js
-  function simplifyRing(ring) {
-    const step = Math.max(1, Math.floor(ring.length / 200));
-    const simplified = [];
-    for (let i = 0; i < ring.length; i += step) {
-      simplified.push(ring[i]);
-    }
-    if (simplified[simplified.length - 1] !== simplified[0]) simplified.push(simplified[0]);
-    return simplified;
-  }
-  function preprocessWorldGeometry(geojson) {
-    const features = [];
-    if (!geojson?.features) return features;
-    for (const feature of geojson.features) {
-      const geometry = feature.geometry;
-      if (!geometry) continue;
-      let polygons = [];
-      if (geometry.type === "Polygon") {
-        polygons = [geometry.coordinates.map(simplifyRing)];
-      } else if (geometry.type === "MultiPolygon") {
-        polygons = geometry.coordinates.map((poly) => poly.map(simplifyRing));
-      }
-      for (const poly of polygons) {
-        if (poly.length) features.push(poly);
-      }
-    }
-    return features;
-  }
-  async function loadWeatherGeometry() {
-    weatherOrbState.loading = true;
-    try {
-      const response = await fetch(WORLD_GEOJSON_URL);
-      const geojson = await response.json();
-      weatherOrbState.features = preprocessWorldGeometry(geojson);
-      weatherOrbState.loaded = true;
-      weatherOrbState.countryShapes = /* @__PURE__ */ new Map();
-      if (geojson?.features) {
-        for (const feature of geojson.features) {
-          const iso3 = feature.properties?.iso_a3;
-          if (!iso3) continue;
-          const geometry = feature.geometry;
-          if (!geometry) continue;
-          let polygons = [];
-          if (geometry.type === "Polygon") {
-            polygons = [geometry.coordinates.map(simplifyRing)];
-          } else if (geometry.type === "MultiPolygon") {
-            polygons = geometry.coordinates.map((poly) => poly.map(simplifyRing));
-          }
-          if (polygons.length) weatherOrbState.countryShapes.set(iso3, polygons);
-        }
-      }
-    } catch (_error) {
-      weatherOrbState.features = [];
-      weatherOrbState.loaded = false;
-    } finally {
-      weatherOrbState.loading = false;
-    }
-  }
-  function drawWorldGeometry(ctx, rotY, rotX, radius, centerX, centerY) {
-    if (!weatherOrbState.features.length) return false;
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
-    for (const polygon of weatherOrbState.features) {
-      for (const [ringIndex, ring] of polygon.entries()) {
-        let started = false;
-        ctx.beginPath();
-        for (const [lon, lat] of ring) {
-          const point = latLonProjection(lat, lon, rotY, rotX);
-          if (point.z <= 0) {
-            started = false;
-            continue;
-          }
-          const x = centerX + point.x * radius;
-          const y = centerY - point.y * radius;
-          if (!started) {
-            ctx.moveTo(x, y);
-            started = true;
-          } else {
-            ctx.lineTo(x, y);
-          }
-        }
-        if (started) {
-          ctx.strokeStyle = ringIndex === 0 ? "rgba(180, 200, 220, 0.30)" : "rgba(140, 170, 200, 0.12)";
-          ctx.lineWidth = ringIndex === 0 ? 0.8 : 0.3;
-          ctx.stroke();
-        }
-      }
-    }
-    return true;
-  }
-  function latLonProjection(latDeg, lonDeg, rotY, rotX) {
-    const lat = latDeg * Math.PI / 180;
-    const lon = lonDeg * Math.PI / 180 + rotY;
-    const cx = Math.cos(lat) * Math.sin(lon);
-    const cy = Math.sin(lat);
-    const cz = Math.cos(lat) * Math.cos(lon);
-    const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
-    const ya = cy * cosX - cz * sinX;
-    const za = cy * sinX + cz * cosX;
-    return { x: cx, y: ya, z: za, lat, lon };
-  }
 
   // src/weather.js
   function buildWeatherGridCoordinates() {
@@ -447,43 +332,8 @@ var GlobeWidget = (() => {
   function smoothstep(t) {
     return t * t * (3 - 2 * t);
   }
-  function rgba(color, alpha) {
-    return `rgba(${color[0]},${color[1]},${color[2]},${alpha})`;
-  }
   function renderEarthTexture(ctx, cx, cy, r, rotation) {
     const img = earthTextureImage;
-    if (!img) return;
-    const iw = img.width, ih = img.height;
-    const halfIw = iw / 2;
-    let srcX = (rotation + Math.PI / 2) % (2 * Math.PI) / (2 * Math.PI) * iw;
-    if (srcX < 0) srcX += iw;
-    const wrap = srcX + halfIw > iw;
-    for (let dy = -r; dy <= r; dy++) {
-      const y = cy + dy;
-      const sinP = dy / r;
-      if (Math.abs(sinP) >= 1) continue;
-      const cosP = Math.cos(Math.asin(sinP));
-      const sw = Math.round(2 * r * cosP);
-      if (sw < 2) continue;
-      const sy = (Math.PI / 2 + Math.asin(sinP)) / Math.PI * ih;
-      const dx = Math.round(cx - sw / 2);
-      if (!wrap) {
-        ctx.drawImage(img, srcX, sy, halfIw, 1, dx, y, sw, 1);
-      } else {
-        const w1 = Math.round(iw - srcX);
-        const f = w1 / halfIw;
-        const dw1 = Math.round(sw * f);
-        if (dw1 > 0) {
-          ctx.drawImage(img, srcX, sy, w1, 1, dx, y, dw1, 1);
-          ctx.drawImage(img, 0, sy, halfIw - w1, 1, dx + dw1, y, sw - dw1, 1);
-        } else {
-          ctx.drawImage(img, 0, sy, halfIw, 1, dx, y, sw, 1);
-        }
-      }
-    }
-  }
-  function renderNightTexture(ctx, cx, cy, r, rotation) {
-    const img = nightTextureImage;
     if (!img) return;
     const iw = img.width, ih = img.height;
     const halfIw = iw / 2;
@@ -521,7 +371,7 @@ var GlobeWidget = (() => {
     const centerY = height / 2;
     const radius = Math.min(width, height) * 0.34 * globeZoom;
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "#111418";
+    ctx.fillStyle = "#0b253c";
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, 6.2832);
     ctx.fill();
@@ -535,89 +385,7 @@ var GlobeWidget = (() => {
     ctx.arc(centerX, centerY, radius, 0, 6.2832);
     ctx.clip();
     renderEarthTexture(ctx, centerX, centerY, radius, rotY);
-    const coreLayers = [
-      { inner: 0, outer: 0.19, c: [255, 240, 180], a: 0.1 },
-      { inner: 0.19, outer: 0.55, c: [255, 180, 80], a: 0.06 },
-      { inner: 0.55, outer: 0.98, c: [200, 100, 50], a: 0.04 }
-    ];
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    for (const l of coreLayers) {
-      const g = ctx.createRadialGradient(centerX, centerY, radius * l.inner, centerX, centerY, radius * l.outer);
-      g.addColorStop(0, rgba(l.c, l.a));
-      g.addColorStop(0.5, rgba(l.c, l.a * 0.5));
-      g.addColorStop(1, rgba(l.c, 0));
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, radius * l.outer, 0, 6.2832);
-      ctx.arc(centerX, centerY, radius * l.inner, 0, 6.2832, true);
-      ctx.closePath();
-      ctx.fill();
-    }
     ctx.restore();
-    drawWorldGeometry(ctx, rotY, rotX, radius, centerX, centerY);
-    const shade = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-    shade.addColorStop(0, "rgba(0, 0, 0, 0)");
-    shade.addColorStop(0.75, "rgba(0, 0, 0, 0.05)");
-    shade.addColorStop(1, "rgba(0, 0, 0, 0.20)");
-    ctx.fillStyle = shade;
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, 6.2832);
-    ctx.fill();
-    ctx.restore();
-    let sunSx = -0.3, sunSy = 0;
-    if (celestialBodies) {
-      const sunBody = celestialBodies.find((b) => b.sun);
-      if (sunBody) {
-        const ra = sunBody.ra, dec = sunBody.dec;
-        const cDec = Math.cos(dec);
-        const swx = cDec * Math.sin(ra);
-        const swy = Math.sin(dec);
-        const swz = cDec * Math.cos(ra);
-        const cX = Math.cos(rotX), sX = Math.sin(rotX);
-        const rx_y = swy * cX + swz * sX;
-        const rx_z = -swy * sX + swz * cX;
-        const cY = Math.cos(rotY), sY = Math.sin(rotY);
-        const rv_x = swx * cY - rx_z * sY;
-        const rv_y = rx_y;
-        const len = Math.sqrt(rv_x * rv_x + rv_y * rv_y);
-        if (len > 1e-3) {
-          sunSx = rv_x / len;
-          sunSy = rv_y / len;
-        }
-      }
-    }
-    if (nightTextureImage) {
-      const w = canvas.width;
-      const h = canvas.height;
-      const nc = document.createElement("canvas");
-      nc.width = w;
-      nc.height = h;
-      const nctx = nc.getContext("2d");
-      nctx.save();
-      nctx.beginPath();
-      nctx.arc(centerX, centerY, radius, 0, 6.2832);
-      nctx.clip();
-      renderNightTexture(nctx, centerX, centerY, radius, rotY);
-      nctx.restore();
-      const maskGrad = nctx.createLinearGradient(
-        centerX - sunSx * radius,
-        centerY - sunSy * radius,
-        centerX + sunSx * radius,
-        centerY + sunSy * radius
-      );
-      maskGrad.addColorStop(0, "rgba(255, 255, 255, 0.88)");
-      maskGrad.addColorStop(0.4, "rgba(255, 255, 255, 0.65)");
-      maskGrad.addColorStop(0.7, "rgba(255, 255, 255, 0.25)");
-      maskGrad.addColorStop(1, "rgba(255, 255, 255, 0)");
-      nctx.globalCompositeOperation = "destination-in";
-      nctx.fillStyle = maskGrad;
-      nctx.fillRect(0, 0, w, h);
-      nctx.globalCompositeOperation = "source-over";
-      ctx.globalCompositeOperation = "lighter";
-      ctx.drawImage(nc, 0, 0);
-      ctx.globalCompositeOperation = "source-over";
-    }
     const cycle = timeMs / 5200;
     const currentIndex = Math.floor(cycle) % 4;
     const nextIndex = (currentIndex + 1) % 4;
@@ -632,61 +400,61 @@ var GlobeWidget = (() => {
     const label = currentLayer.charAt(0).toUpperCase() + currentLayer.slice(1);
     ctx.fillText(label, centerX, infoY);
     ctx.save();
-    const moonGrad = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, 6);
-    moonGrad.addColorStop(0, "rgba(200, 200, 210, 0.5)");
-    moonGrad.addColorStop(0.5, "rgba(180, 180, 200, 0.2)");
+    const moonGrad = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, 4);
+    moonGrad.addColorStop(0, "rgba(220, 220, 230, 0.32)");
+    moonGrad.addColorStop(0.5, "rgba(180, 180, 200, 0.12)");
     moonGrad.addColorStop(1, "rgba(180, 180, 200, 0)");
     ctx.fillStyle = moonGrad;
     ctx.beginPath();
-    ctx.arc(moonX, moonY, 6, 0, 6.2832);
+    ctx.arc(moonX, moonY, 4, 0, 6.2832);
     ctx.fill();
     ctx.restore();
   }
 
   // src/interaction.js
   function setupGlobeInteraction(canvas, opts = {}) {
+    canvas.style.touchAction = "none";
+    canvas.style.cursor = "grab";
     const onStart = (clientX, clientY) => {
       globeDrag.active = true;
       globeDrag.startX = clientX;
       globeDrag.startY = clientY;
       globeDrag.startRotY = globeRotY;
       globeDrag.startRotX = globeRotX;
+      canvas.style.cursor = "grabbing";
     };
     const onMove = (clientX, clientY) => {
       if (!globeDrag.active) return;
       const rect = canvas.getBoundingClientRect();
-      const w = rect.width;
-      const h = rect.height;
+      const dragScale = Math.max(1, Math.min(rect.width, rect.height));
       const dx = clientX - globeDrag.startX;
-      const dy = clientY - globeDrag.startY;
-      setGlobeRotY(globeDrag.startRotY - dx / w * Math.PI * 2);
-      setGlobeRotX(globeDrag.startRotX + dy / h * Math.PI * 2);
-      const rx = globeRotX;
-      if (rx > Math.PI / 2) setGlobeRotX(Math.PI / 2);
-      if (rx < -Math.PI / 2) setGlobeRotX(-Math.PI / 2);
+      setGlobeRotY(globeDrag.startRotY - dx / dragScale * Math.PI * 1.4);
+      setGlobeRotX(0);
     };
     const onEnd = () => {
       globeDrag.active = false;
+      canvas.style.cursor = "grab";
     };
-    canvas.addEventListener("mousedown", (e) => onStart(e.clientX));
-    window.addEventListener("mousemove", (e) => onMove(e.clientX));
-    window.addEventListener("mouseup", onEnd);
-    canvas.addEventListener("wheel", (e) => {
+    const onMouseDown = (e) => onStart(e.clientX, e.clientY);
+    const onMouseMove = (e) => onMove(e.clientX, e.clientY);
+    const onWheel = (e) => {
       e.preventDefault();
       const z = globeZoom * Math.exp(-e.deltaY * 1e-3);
       setGlobeZoom(Math.max(0.3, Math.min(4, z)));
-    }, { passive: false });
-    let pinchDist = 0;
-    canvas.addEventListener("touchstart", (e) => {
+    };
+    const onTouchStart = (e) => {
       if (e.touches.length === 1) onStart(e.touches[0].clientX, e.touches[0].clientY);
       if (e.touches.length === 2) {
         const dx = e.touches[0].clientX - e.touches[1].clientX;
         const dy = e.touches[0].clientY - e.touches[1].clientY;
         pinchDist = Math.sqrt(dx * dx + dy * dy);
       }
-    }, { passive: true });
-    canvas.addEventListener("touchmove", (e) => {
-      if (e.touches.length === 1) onMove(e.touches[0].clientX, e.touches[0].clientY);
+    };
+    const onTouchMove = (e) => {
+      if (e.touches.length === 1) {
+        e.preventDefault();
+        onMove(e.touches[0].clientX, e.touches[0].clientY);
+      }
       if (e.touches.length === 2) {
         e.preventDefault();
         const dx = e.touches[0].clientX - e.touches[1].clientX;
@@ -698,11 +466,30 @@ var GlobeWidget = (() => {
         }
         pinchDist = dist;
       }
-    }, { passive: false });
-    canvas.addEventListener("touchend", (e) => {
+    };
+    const onTouchEnd = (e) => {
       if (e.touches.length < 2) pinchDist = 0;
       if (e.touches.length === 0) onEnd();
-    }, { passive: true });
+    };
+    canvas.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onEnd);
+    canvas.addEventListener("wheel", onWheel, { passive: false });
+    let pinchDist = 0;
+    canvas.addEventListener("touchstart", onTouchStart, { passive: true });
+    canvas.addEventListener("touchmove", onTouchMove, { passive: false });
+    canvas.addEventListener("touchend", onTouchEnd, { passive: true });
+    canvas.addEventListener("touchcancel", onTouchEnd, { passive: true });
+    return () => {
+      canvas.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onEnd);
+      canvas.removeEventListener("wheel", onWheel);
+      canvas.removeEventListener("touchstart", onTouchStart);
+      canvas.removeEventListener("touchmove", onTouchMove);
+      canvas.removeEventListener("touchend", onTouchEnd);
+      canvas.removeEventListener("touchcancel", onTouchEnd);
+    };
   }
 
   // src/index.js
@@ -756,8 +543,6 @@ var GlobeWidget = (() => {
     const globeCtx = globeCanvas.getContext("2d");
     const starfieldCtx = starfieldCanvas.getContext("2d");
     loadEarthTexture();
-    loadNightTexture();
-    loadWeatherGeometry();
     if (opts.weather) {
       loadLiveWeatherGrid().catch(() => {
       });
@@ -766,8 +551,9 @@ var GlobeWidget = (() => {
       const catalog = await loadStarCatalog();
       setStarCatalog(catalog);
     })();
+    let disposeInteraction = null;
     if (opts.drag) {
-      setupGlobeInteraction(globeCanvas);
+      disposeInteraction = setupGlobeInteraction(globeCanvas);
     }
     const onResize = () => {
       const rect = wrapper.getBoundingClientRect();
@@ -806,6 +592,7 @@ var GlobeWidget = (() => {
       onResize,
       destroy() {
         running = false;
+        if (disposeInteraction) disposeInteraction();
         window.removeEventListener("resize", onResize);
         wrapper.remove();
         instances.delete(selector);

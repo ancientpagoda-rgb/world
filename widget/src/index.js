@@ -1,8 +1,7 @@
 import { setStarCatalog, setStarsUrl, celestialBodies, setCelestialBodies, setCelestialEpoch, getCelestialEpoch, globeRotY } from "./state.js";
 import { computeCelestialBodies } from "./planets.js";
 import { loadStarCatalog, renderStarfield } from "./starfield.js";
-import { loadEarthTexture, loadNightTexture } from "./textures.js";
-import { loadWeatherGeometry } from "./geometry.js";
+import { loadEarthTexture } from "./textures.js";
 import { loadLiveWeatherGrid } from "./weather.js";
 import { drawWeatherOrbFrame } from "./renderer.js";
 import { setupGlobeInteraction } from "./interaction.js";
@@ -69,8 +68,6 @@ export function mount(selector, options = {}) {
 
   // Load resources
   loadEarthTexture();
-  loadNightTexture();
-  loadWeatherGeometry();
   if (opts.weather) {
     loadLiveWeatherGrid().catch(() => {});
   }
@@ -82,8 +79,9 @@ export function mount(selector, options = {}) {
   })();
 
   // Drag
+  let disposeInteraction = null;
   if (opts.drag) {
-    setupGlobeInteraction(globeCanvas);
+    disposeInteraction = setupGlobeInteraction(globeCanvas);
   }
 
   // Resize handler
@@ -127,6 +125,7 @@ export function mount(selector, options = {}) {
     onResize,
     destroy() {
       running = false;
+      if (disposeInteraction) disposeInteraction();
       window.removeEventListener("resize", onResize);
       wrapper.remove();
       instances.delete(selector);

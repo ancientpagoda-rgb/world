@@ -156,6 +156,29 @@ const TONE_SUPERSCRIPTS = {
   "4": "⁴",
 };
 
+const ENGLISH_HINT_WORDS = new Set([
+  "the",
+  "and",
+  "of",
+  "to",
+  "in",
+  "for",
+  "with",
+  "on",
+  "at",
+  "by",
+  "from",
+  "is",
+  "are",
+  "was",
+  "were",
+  "said",
+  "new",
+  "after",
+  "as",
+  "that",
+]);
+
 const DA_ALFABET_TRANSLATOR = {
   core_chart: [
     { id: "trap_cat", ipa: "æ", da: "A", examples: ["and", "cat"], notes: "short A" },
@@ -487,16 +510,107 @@ async function transliterateChinese(input = "") {
   return toDaPresentation(toDaCore(input));
 }
 
+const ENGLISH_PHONETIC_REPLACEMENTS = [
+  [/eigh/g, "eɪ"],
+  [/igh/g, "aɪ"],
+  [/tion/g, "ʃən"],
+  [/sion/g, "ʒən"],
+  [/ture\b/g, "tʃər"],
+  [/ph/g, "f"],
+  [/kn/g, "n"],
+  [/wr/g, "r"],
+  [/wh/g, "w"],
+  [/qu/g, "kw"],
+  [/ck/g, "k"],
+  [/ee/g, "iː"],
+  [/ea/g, "iː"],
+  [/ie\b/g, "aɪ"],
+  [/ai/g, "eɪ"],
+  [/ay\b/g, "eɪ"],
+  [/oa/g, "əʊ"],
+  [/ow\b/g, "əʊ"],
+  [/ou/g, "aʊ"],
+  [/oi/g, "ɔɪ"],
+  [/oy\b/g, "ɔɪ"],
+  [/au/g, "ɔː"],
+  [/aw/g, "ɔː"],
+  [/er\b/g, "ɜːr"],
+  [/ir/g, "ɜːr"],
+  [/ur/g, "ɜːr"],
+  [/ar/g, "aːr"],
+  [/or/g, "ɔːr"],
+  [/our\b/g, "ɔːr"],
+  [/oo/g, "uː"],
+];
+
+function isAcronymToken(token) {
+  const letters = String(token || "").replace(/[^A-Za-z]/g, "");
+  return letters.length >= 2 && letters.length <= 6 && letters === letters.toUpperCase();
+}
+
+function normalizeEnglishTokenForDa(token = "") {
+  const input = String(token || "");
+  if (!input || !/[A-Za-z]/.test(input)) return input;
+  if (isAcronymToken(input)) return input;
+
+  let word = input.toLowerCase().normalize("NFC").replace(/[’']/g, "");
+
+  // Prefer a few high-signal spelling patterns before the broader phoneme map.
+  word = word.replace(/a([bcdfghjklmnpqrstvwxyz])e\b/g, "eɪ$1");
+  word = word.replace(/i([bcdfghjklmnpqrstvwxyz])e\b/g, "aɪ$1");
+  word = word.replace(/o([bcdfghjklmnpqrstvwxyz])e\b/g, "əʊ$1");
+  word = word.replace(/u([bcdfghjklmnpqrstvwxyz])e\b/g, "juː$1");
+
+  word = applyReplacements(word, ENGLISH_PHONETIC_REPLACEMENTS);
+
+  // Final -y commonly behaves like a vowel.
+  word = word.replace(/([bcdfghjklmnpqrstvwxyz])y\b/g, "$1i");
+  word = word.replace(/y\b/g, "i");
+
+  // Clean up a few stragglers after the broad replacements.
+  word = word.replace(/c(?=[eiy])/g, "s");
+  word = word.replace(/g(?=[eiy])/g, "dʒ");
+  word = word.replace(/x/g, "ks");
+  word = word.replace(/e\b/g, "");
+
+  return word;
+}
+
+function normalizeEnglishForDa(input = "") {
+  const parts = String(input || "").match(/\s+|[^\s]+/g) || [];
+  return parts.map((part) => (/^\s+$/.test(part) ? part : normalizeEnglishTokenForDa(part))).join("");
+}
+
+function isProbablyEnglishText(text) {
+  const input = String(text || "").trim();
+  if (!input) return false;
+  if (/[^\x00-\x7F]/.test(input)) return false;
+
+  const words = input.toLowerCase().match(/[a-z']+/g) || [];
+  if (words.length < 4) return false;
+
+  let hits = 0;
+  for (const word of words) {
+    if (ENGLISH_HINT_WORDS.has(word)) hits += 1;
+  }
+  return hits >= 2;
+}
+
 async function toDaDisplay(input = "", language = "") {
   const text = String(input || "");
   if (!text) return "";
+  const { body, suffix } = splitSourceSuffix(text);
+  const sourceText = body || text;
   if (language === "hi" || DEVANAGARI_RE.test(text)) {
-    return transliterateDevanagari(text);
+    return `${transliterateDevanagari(sourceText)}${suffix}`.trim();
   }
   if (language === "zh" || HAN_RE.test(text)) {
-    return transliterateChinese(text);
+    return `${await transliterateChinese(sourceText)}${suffix}`.trim();
   }
-  return toDaCore(text);
+  const normalized = isProbablyEnglishText(sourceText)
+    ? normalizeEnglishForDa(sourceText)
+    : sourceText;
+  return `${toDaPresentation(toDaCore(normalized))}${suffix}`.trim();
 }
 
 const englishTranslationCache = new Map();
@@ -523,6 +637,7 @@ async function toEnglishDisplay(input = "", language = "") {
   const text = String(input || "").trim();
   if (!text) return "";
   if (language === "en") return text;
+  if (!language && isProbablyEnglishText(text)) return text;
   const cacheKey = `${language || "auto"}::${text}`;
   if (englishTranslationCache.has(cacheKey)) return englishTranslationCache.get(cacheKey);
 
@@ -596,9 +711,7 @@ const EARTH_LIVE_LAYER_CANDIDATES = [
   "MODIS_Aqua_CorrectedReflectance_TrueColor",
   "MODIS_Terra_CorrectedReflectance_TrueColor",
 ];
-const NIGHT_TEXTURE_URL = "https://unpkg.com/three-globe@2.31.0/example/img/earth-night.jpg";
 const earthTexture = { img: null };
-const nightTexture = { img: null };
 const debugState = {
   earthImgLoaded: false,
   earthImgError: null,
@@ -612,9 +725,8 @@ const debugState = {
   precipRasterLoaded: false,
 };
 
-let _earthData = null, _nightData = null;
+let _earthData = null;
 let _earthCache = { offscreen: null, r: 0, rotY: null, rotX: null };
-let _nightCache = { offscreen: null, r: 0, rotY: null, rotX: null };
 let _earthPriority = -1;
 
 function setEarthTextureFromImage(img, priority, sourceLabel, sourceUrl) {
@@ -742,25 +854,6 @@ function loadEarthTexture() {
 
     // Fire and forget the live path. If it succeeds, it takes over.
   tryLoadLiveEarthTexture().catch(() => {});
-}
-
-function loadNightTexture() {
-  const img = new Image();
-  img.crossOrigin = "anonymous";
-  img.onload = () => {
-    nightTexture.img = img;
-    const c = document.createElement("canvas");
-    c.width = img.width; c.height = img.height;
-    const cx = c.getContext("2d");
-    cx.drawImage(img, 0, 0);
-    try {
-      _nightData = cx.getImageData(0, 0, img.width, img.height);
-    } catch {
-      _nightData = null;
-    }
-  };
-  img.onerror = () => { nightTexture.img = null; };
-  img.src = NIGHT_TEXTURE_URL;
 }
 
 // --- Weather raster overlays (generated by CI) ---
@@ -1113,12 +1206,6 @@ function renderEarthTexture(ctx, cx, cy, r, rotY, rotX) {
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, 6.2832);
   ctx.fill();
-}
-
-function renderNightTexture(ctx, cx, cy, r, rotY, rotX) {
-  if (_nightData) {
-    _renderTexture3D(_nightCache, _nightData, ctx, cx, cy, r, rotY, rotX);
-  }
 }
 
 // --- Solar system orbits (actual celestial positions) ---
@@ -1939,17 +2026,6 @@ function drawWorldGeometry(ctx, rotY, rotX, radius, centerX, centerY) {
   return true;
 }
 
-let nightOffscreen = null;
-
-function getNightOffscreen(w, h) {
-  if (!nightOffscreen || nightOffscreen.width !== w || nightOffscreen.height !== h) {
-    nightOffscreen = document.createElement('canvas');
-    nightOffscreen.width = w;
-    nightOffscreen.height = h;
-  }
-  return nightOffscreen;
-}
-
 let weatherOverlayOffscreen = null;
 let weatherOverlayCache = {
   w: 0,
@@ -1992,13 +2068,10 @@ function setupGlobeInteraction(canvas) {
     if (!globeDrag.active) return;
     const rect = canvas.getBoundingClientRect();
     const w = rect.width;
-    const h = rect.height;
     const dx = clientX - globeDrag.startX;
-    const dy = clientY - globeDrag.startY;
     // Grab-and-drag feel: drag right -> texture moves right.
     globeRotY = globeDrag.startRotY + (dx / w) * Math.PI * 2;
-    globeRotX = globeDrag.startRotX + (dy / h) * Math.PI * 2;
-    globeRotX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, globeRotX));
+    globeRotX = 0;
   };
   const onEnd = () => { globeDrag.active = false; };
 
@@ -2154,25 +2227,7 @@ function drawWeatherOrbFrame(ctx, canvas, timeMs) {
 
   renderEarthTexture(ctx, centerX, centerY, radius, rotY, rotX);
 
-  // Ambient lift so the texture reads on darker monitors.
-  ctx.save();
-  ctx.globalCompositeOperation = "screen";
-  const lift = ctx.createRadialGradient(centerX, centerY, radius * 0.1, centerX, centerY, radius * 1.05);
-  lift.addColorStop(0, "rgba(255, 255, 255, 0.11)");
-  lift.addColorStop(1, "rgba(255, 255, 255, 0)");
-  ctx.fillStyle = lift;
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Slight blue lift to bring oceans/land out of the base fill.
-  ctx.fillStyle = "rgba(110, 150, 210, 0.07)";
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-
-  drawWorldGeometry(ctx, rotY, rotX, radius, centerX, centerY);
+  // Keep the globe opaque and avoid the glassy look from additive blending.
 
   // Expensive weather overlay: cache to an offscreen canvas and refresh at low FPS
   // or when rotation/zoom changes enough.
@@ -2223,58 +2278,8 @@ function drawWeatherOrbFrame(ctx, canvas, timeMs) {
   ctx.drawImage(overlay, 0, 0);
   drawWindParticles(ctx, rotY, rotX, radius, centerX, centerY, timeMs);
 
-  // Sun-direction-based night shadow gradient
-  const bodies = getCelestialBodies();
-  const sunBody = bodies.find(b => b.sun);
-  let sunSx = -0.3, sunSy = 0;
-  if (sunBody) {
-    const ra = sunBody.ra, dec = sunBody.dec;
-    const cDec = Math.cos(dec);
-    const swx = cDec * Math.sin(ra);
-    const swy = Math.sin(dec);
-    const swz = cDec * Math.cos(ra);
-    const cX = Math.cos(rotX), sX = Math.sin(rotX);
-    const rx_y = swy * cX + swz * sX;
-    const rx_z = -swy * sX + swz * cX;
-    const cY = Math.cos(rotY), sY = Math.sin(rotY);
-    const rv_x = swx * cY - rx_z * sY;
-    const rv_y = rx_y;
-    const len = Math.sqrt(rv_x * rv_x + rv_y * rv_y);
-    if (len > 0.001) { sunSx = rv_x / len; sunSy = rv_y / len; }
-  }
-
-  // Note: removed additional vignette + night-side shading to keep the globe
-  // as a surface-only texture (avoids the "dark sphere inside" look).
-
-  if (nightTexture.img) {
-    const nc = getNightOffscreen(canvas.width, canvas.height);
-    const nctx = nc.getContext("2d");
-    nctx.clearRect(0, 0, nc.width, nc.height);
-
-    nctx.save();
-    nctx.beginPath();
-    nctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-    nctx.clip();
-    renderNightTexture(nctx, centerX, centerY, radius, rotY, rotX);
-    nctx.restore();
-
-    const maskGrad = nctx.createLinearGradient(
-      centerX - sunSx * radius, centerY - sunSy * radius,
-      centerX + sunSx * radius, centerY + sunSy * radius
-    );
-    maskGrad.addColorStop(0, "rgba(255, 255, 255, 0.88)");
-    maskGrad.addColorStop(0.4, "rgba(255, 255, 255, 0.65)");
-    maskGrad.addColorStop(0.7, "rgba(255, 255, 255, 0.25)");
-    maskGrad.addColorStop(1, "rgba(255, 255, 255, 0)");
-    nctx.globalCompositeOperation = "destination-in";
-    nctx.fillStyle = maskGrad;
-    nctx.fillRect(0, 0, nc.width, nc.height);
-    nctx.globalCompositeOperation = "source-over";
-
-    ctx.globalCompositeOperation = "lighter";
-    ctx.drawImage(nc, 0, 0);
-    ctx.globalCompositeOperation = "source-over";
-  } else {
+  // Night mode is disabled entirely to avoid dark artifacts near the poles.
+  {
     for (const [clat, clon, cpop] of CITIES) {
       const point = latLonProjection(clat, clon, rotY, rotX);
       if (point.z <= 0 || point.x >= 0) continue;
@@ -2296,29 +2301,6 @@ function drawWeatherOrbFrame(ctx, canvas, timeMs) {
       ctx.beginPath();
       ctx.arc(sx, sy, coreR, 0, Math.PI * 2);
       ctx.fill();
-    }
-  }
-
-  for (const sign of [1, -1]) {
-    for (let lat = 62; lat <= 82; lat += 1.5) {
-      for (let lon = -180; lon < 180; lon += 3) {
-        const point = latLonProjection(lat * sign, lon, rotY, rotX);
-        if (point.z <= 0 || point.x >= 0) continue;
-        const sx = centerX + point.x * radius;
-        const sy = centerY - point.y * radius;
-        const nx = lon * 0.05 + timeMs * 0.00007;
-        const ny = lat * 0.04 + timeMs * 0.00004;
-        const c1 = smoothNoise(nx, ny);
-        const c2 = smoothNoise(nx * 0.5 + 10, ny * 0.5 + 10);
-        const curtain = c1 * 0.5 + c2 * 0.5;
-        const intensity = curtain * 0.65 - 0.08;
-        if (intensity <= 0) continue;
-        const g = Math.round(50 + 200 * intensity);
-        const r = Math.round(5 + 30 * intensity * smoothNoise(nx + 5, ny));
-        const b = Math.round(20 + 60 * intensity * smoothNoise(ny + 5, nx));
-        ctx.fillStyle = rgba([r, g, b], (0.12 * LOFI_GLOW_INTENSITY) * intensity);
-        ctx.fillRect(sx - 1.5, sy - 1, 3, 2);
-      }
     }
   }
 
@@ -2489,7 +2471,6 @@ function initializeWeatherOrb() {
   window.addEventListener("resize", resizeOrb);
 
   loadEarthTexture();
-  loadNightTexture();
   loadWeatherRasters();
   loadStarCatalog();
   loadWeatherGeometry();
@@ -2572,6 +2553,66 @@ function getCountryThumbnailDataURL(iso3, w, h) {
   return canvas.toDataURL();
 }
 
+const WORD_SEGMENTER = typeof Intl !== "undefined" && typeof Intl.Segmenter === "function"
+  ? new Intl.Segmenter(undefined, { granularity: "word" })
+  : null;
+const SYLLABLE_VOWEL_CHARS = "aeiouyāēīōūæœəɨɪʊɔɒàáâäãåèéêëìíîïòóôöõøùúûüýÿṛḷḹ";
+const SYLLABLE_VOWEL_RE = new RegExp(`[${SYLLABLE_VOWEL_CHARS}]`, "i");
+const SYLLABLE_WORD_RE = new RegExp(
+  `[^${SYLLABLE_VOWEL_CHARS}]*[${SYLLABLE_VOWEL_CHARS}]+(?:[^${SYLLABLE_VOWEL_CHARS}]+(?=[${SYLLABLE_VOWEL_CHARS}]|$))?`,
+  "gi",
+);
+
+function isWordToken(text) {
+  return /[\p{L}\p{N}]/u.test(String(text || ""));
+}
+
+function splitSyllableLikeWord(word) {
+  const input = String(word || "");
+  if (input.length <= 4) return [input];
+  if (!SYLLABLE_VOWEL_RE.test(input)) return [input];
+  const chunks = input.match(SYLLABLE_WORD_RE);
+  return chunks && chunks.length > 1 ? chunks : [input];
+}
+
+function splitColorSegments(text, mode = "word") {
+  const input = String(text || "");
+  if (!input) return [];
+
+  const rawSegments = WORD_SEGMENTER
+    ? Array.from(WORD_SEGMENTER.segment(input), (part) => ({
+        text: part.segment,
+        wordLike: !!part.isWordLike,
+      }))
+    : (input.match(/\s+|[^\s]+/g) || []).map((segment) => ({
+        text: segment,
+        wordLike: isWordToken(segment),
+      }));
+
+  const segments = [];
+  for (const segment of rawSegments) {
+    if (!segment.text) continue;
+    if (/^\s+$/.test(segment.text)) {
+      segments.push({ text: segment.text, colorable: false });
+      continue;
+    }
+
+    if (mode === "syllable" && segment.wordLike) {
+      const pieces = splitSyllableLikeWord(segment.text);
+      if (pieces.length > 1) {
+        for (const piece of pieces) {
+          segments.push({ text: piece, colorable: true });
+        }
+        continue;
+      }
+    }
+
+    segments.push({ text: segment.text, colorable: segment.wordLike });
+  }
+
+  return segments;
+}
+
 const NEWS_SEGMENT_COLORS = [
   "255 107 107", // red
   "254 202 87",  // amber
@@ -2582,22 +2623,31 @@ const NEWS_SEGMENT_COLORS = [
   "200 214 229", // silver
 ];
 
-function setColorCodedSegments(target, text, className) {
+function hashSegmentText(text, mode = "word") {
+  let hash = 2166136261;
+  const input = `${mode}::${String(text || "").normalize("NFC")}`;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function setColorCodedSegments(target, text, className, mode = "word") {
   target.textContent = "";
-  const parts = String(text || "").match(/\s+|[^\s]+/g) || [];
-  let segIndex = 0;
+  const parts = splitColorSegments(text, mode);
   for (const part of parts) {
-    if (!part) continue;
-    if (/^\s+$/.test(part)) {
-      target.appendChild(document.createTextNode(part));
+    if (!part?.text) continue;
+    if (!part.colorable) {
+      target.appendChild(document.createTextNode(part.text));
       continue;
     }
     const span = document.createElement("span");
     span.className = className;
-    span.style.setProperty("--seg-color", NEWS_SEGMENT_COLORS[segIndex % NEWS_SEGMENT_COLORS.length]);
-    span.textContent = part;
+    const colorIndex = hashSegmentText(part.text, mode) % NEWS_SEGMENT_COLORS.length;
+    span.style.setProperty("--seg-color", NEWS_SEGMENT_COLORS[colorIndex]);
+    span.textContent = part.text;
     target.appendChild(span);
-    segIndex += 1;
   }
 }
 
@@ -2617,11 +2667,13 @@ function renderNewsItem(item) {
   const originalText = item.title || item.headline || item.text || "";
   const daText = item.da || "Translating…";
   const englishText = item.english || "Translating…";
+  const language = item.language || "";
+  const originalMode = language === "en" || isProbablyEnglishText(originalText) ? "word" : "syllable";
 
   // Color-code segments by position so each original segment maps visually to its transliteration.
-  setColorCodedSegments(original, originalText, "syllable");
-  setColorCodedSegments(da, daText, "translation");
-  setColorCodedSegments(english, englishText, "translation");
+  setColorCodedSegments(original, originalText, "syllable", originalMode);
+  setColorCodedSegments(da, daText, "translation", "syllable");
+  setColorCodedSegments(english, englishText, "translation", "word");
 
   row.append(original, da, english);
   return row;
@@ -2637,8 +2689,8 @@ async function hydrateNewsItem(row, originalText, language = "") {
     toEnglishDisplay(originalText, language),
   ]);
 
-  setColorCodedSegments(daEl, daText || originalText, "translation");
-  setColorCodedSegments(englishEl, englishText || originalText, "translation");
+  setColorCodedSegments(daEl, daText || originalText, "translation", "syllable");
+  setColorCodedSegments(englishEl, englishText || originalText, "translation", "word");
 }
 
 async function renderCountries(countries) {
@@ -2725,14 +2777,14 @@ async function renderCountries(countries) {
     newsList.className = "news-list";
 
     const headlineText = item.title || item.headline || item.text || "No headline.";
-    const row = renderNewsItem({ headline: headlineText });
+    const row = renderNewsItem({ headline: headlineText, language: item.language || "" });
     newsList.appendChild(row);
     hydrateNewsItem(row, headlineText, item.language || "").catch((err) => reportFatal(err));
 
     body.append(name, code, header, newsList);
 
     if (descClamped) {
-      const drow = renderNewsItem({ text: descClamped });
+      const drow = renderNewsItem({ text: descClamped, language: item.language || "" });
       newsList.appendChild(drow);
       hydrateNewsItem(drow, descClamped, item.language || "").catch((err) => reportFatal(err));
     }

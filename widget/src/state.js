@@ -1,5 +1,4 @@
 export const EARTH_TEXTURE_URL = "https://unpkg.com/three-globe@2.31.0/example/img/earth-blue-marble.jpg";
-export const NIGHT_TEXTURE_URL = "https://unpkg.com/three-globe@2.31.0/example/img/earth-night.jpg";
 export let STARS_URL = "./stars.json";
 export function setStarsUrl(url) { STARS_URL = url; }
 export const WORLD_GEOJSON_URL = "https://unpkg.com/visionscarto-world-atlas@0.0.4/world/50m_countries.geojson";
@@ -33,13 +32,8 @@ export function setGlobeRotY(v) { globeRotY = v; }
 export function setGlobeRotX(v) { globeRotX = v; }
 export function setGlobeZoom(v) { globeZoom = v; }
 
-export let nightOffscreen = null;
-export function setNightOffscreen(c) { nightOffscreen = c; }
-
 export let earthTextureImage = null;
 export function setEarthTexture(img) { earthTextureImage = img; }
-export let nightTextureImage = null;
-export function setNightTexture(img) { nightTextureImage = img; }
 
 export let STAR_CATALOG = [];
 export function setStarCatalog(c) { STAR_CATALOG = c; }
