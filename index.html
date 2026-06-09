@@ -24,7 +24,7 @@
       class="rasters-toggle"
       type="button"
       aria-label="Toggle weather raster overlays"
-    >Weather overlays: Off</button>
+    >Rasters: Off</button>
     <main>
       <header class="hero" aria-labelledby="world-title">
         <div class="hero-copy">
@@ -58,7 +58,7 @@
           <summary>How to read this</summary>
           <p>
             The orb shows the globe and weather layer. Each country row shows the original headline,
-            the transliterated “ÐΛ Core + kit” version, and an English translation. Raster overlays
+            the transliterated "ÐΛ Core + kit" version, and an English translation. Raster overlays
             can be toggled on or off.
           </p>
         </details>
@@ -103,6 +103,11 @@
         const appV = String(Date.now());
         const s = document.createElement("script");
         s.src = `./app.js?v=${encodeURIComponent(appV)}`;
+        s.onerror = () => {
+          const tag = document.getElementById("build-tag");
+          if (tag) tag.textContent += "\nERROR: Failed to load app.js";
+          console.error("Failed to load app.js");
+        };
         document.body.appendChild(s);
 
         const tag = document.getElementById("build-tag");
