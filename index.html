@@ -14,7 +14,7 @@
       href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="/world/styles.css" />
   </head>
   <body>
     <canvas id="starfield-canvas" class="starfield-canvas"></canvas>
@@ -93,7 +93,7 @@
         // This avoids users getting stuck on a stale cached app.js on GitHub Pages.
         let v = "";
         try {
-          const meta = await fetch("./earth-live.json", { cache: "no-store" }).then((r) => r.json());
+          const meta = await fetch("/world/earth-live.json", { cache: "no-store" }).then((r) => r.json());
           v = (typeof meta?.generatedAt === "string" && meta.generatedAt) || (typeof meta?.requestedTime === "string" && meta.requestedTime) || "";
         } catch {
           v = String(Date.now());
@@ -102,7 +102,7 @@
         // app.js changes more frequently than earth-live.json; always bust it.
         const appV = String(Date.now());
         const s = document.createElement("script");
-        s.src = `./app.js?v=${encodeURIComponent(appV)}`;
+        s.src = `/world/app.js?v=${encodeURIComponent(appV)}`;
         s.onerror = () => {
           const tag = document.getElementById("build-tag");
           if (tag) tag.textContent += "\nERROR: Failed to load app.js";
