@@ -1,4 +1,4 @@
-import { createReadStream, existsSync, readFileSync } from "node:fs";
+import { createReadStream, existsSync, readdirSync, readFileSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
@@ -25,6 +25,7 @@ function resolveChromiumExecutablePath() {
   const candidates = [
     process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
     process.env.PLAYWRIGHT_CHROMIUM_PATH,
+    ...discoverCachedChromiumExecutables(),
     "/usr/bin/chromium-browser",
     "/usr/bin/chromium",
     "/usr/bin/google-chrome-stable",
@@ -32,6 +33,23 @@ function resolveChromiumExecutablePath() {
   ].filter(Boolean);
 
   return candidates.find((candidate) => existsSync(candidate) && !isSnapWrapper(candidate, "chromium"));
+}
+
+function discoverCachedChromiumExecutables() {
+  const cacheRoot = join(process.env.PLAYWRIGHT_BROWSERS_PATH || join(process.env.HOME || "", ".cache", "ms-playwright"));
+  if (!cacheRoot || !existsSync(cacheRoot)) return [];
+
+  const candidates = [];
+  for (const dir of readdirSync(cacheRoot)) {
+    if (!dir.startsWith("chromium-") && !dir.startsWith("chromium_headless_shell-")) continue;
+    candidates.push(
+      join(cacheRoot, dir, "chrome-linux64", "chrome"),
+      join(cacheRoot, dir, "chrome-linux", "chrome"),
+      join(cacheRoot, dir, "chrome-headless-shell-linux64", "chrome-headless-shell"),
+      join(cacheRoot, dir, "chrome-linux", "headless_shell"),
+    );
+  }
+  return candidates;
 }
 
 function resolveFirefoxExecutablePath() {
@@ -102,14 +120,28 @@ async function startStaticServer() {
 }
 
 async function launchBrowser() {
-  const firefoxExecutablePath = resolveFirefoxExecutablePath();
-  if (firefoxExecutablePath) {
-    return await firefox.launch({ executablePath: firefoxExecutablePath });
-  }
-
   const executablePath = resolveChromiumExecutablePath();
   if (executablePath) {
-    return await chromium.launch({ executablePath, args: ["--no-sandbox"] });
+    try {
+      return await chromium.launch({ executablePath, args: ["--no-sandbox"] });
+    } catch (error) {
+      console.warn(`Chromium at ${executablePath} could not launch: ${error.message}`);
+    }
+  }
+
+  try {
+    return await chromium.launch({ args: ["--no-sandbox"] });
+  } catch (error) {
+    console.warn(`Bundled Chromium could not launch: ${error.message}`);
+  }
+
+  const firefoxExecutablePath = resolveFirefoxExecutablePath();
+  if (firefoxExecutablePath) {
+    try {
+      return await firefox.launch({ executablePath: firefoxExecutablePath });
+    } catch (error) {
+      console.warn(`Firefox at ${firefoxExecutablePath} could not launch: ${error.message}`);
+    }
   }
 
   return null;
@@ -157,7 +189,10 @@ page.on("pageerror", (error) => {
 
 page.on("console", (message) => {
   if (message.type() === "error") {
-    errors.push(message.text());
+    const location = message.location();
+    if (location.url.endsWith("/favicon.ico")) return;
+    const suffix = location.url ? ` (${location.url})` : "";
+    errors.push(`${message.text()}${suffix}`);
   }
 });
 

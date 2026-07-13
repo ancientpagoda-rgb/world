@@ -729,30 +729,51 @@ let _earthData = null;
 let _earthCache = { offscreen: null, r: 0, rotY: null, rotX: null };
 let _earthPriority = -1;
 
+function estimateImageBrightness(imageData) {
+  if (!imageData?.data?.length) return 0;
+  const d = imageData.data;
+  const stride = Math.max(4, Math.floor(d.length / 1600 / 4) * 4);
+  let total = 0;
+  let count = 0;
+  for (let i = 0; i < d.length; i += stride) {
+    if (d[i + 3] < 16) continue;
+    total += d[i] * 0.2126 + d[i + 1] * 0.7152 + d[i + 2] * 0.0722;
+    count += 1;
+  }
+  return count ? total / count : 0;
+}
+
 function setEarthTextureFromImage(img, priority, sourceLabel, sourceUrl) {
   if (priority < _earthPriority) return;
-  _earthPriority = priority;
-  earthTexture.img = img;
-  debugState.earthImgLoaded = true;
-  debugState.earthImgError = null;
-  debugState.earthSource = sourceLabel;
-  debugState.earthUrl = sourceUrl;
 
   const c = document.createElement("canvas");
   c.width = img.width;
   c.height = img.height;
   const cx = c.getContext("2d");
   cx.drawImage(img, 0, 0);
+  let imageData = null;
   try {
-    _earthData = cx.getImageData(0, 0, img.width, img.height);
+    imageData = cx.getImageData(0, 0, img.width, img.height);
+    const brightness = estimateImageBrightness(imageData);
+    if (priority > 0 && brightness < 18) {
+      debugState.earthImgError = `live snapshot rejected: too dark (${brightness.toFixed(1)})`;
+      return;
+    }
     debugState.earthPixelsReadable = true;
     debugState.earthPixelsError = null;
   } catch {
     // If the canvas becomes tainted for any reason, fall back to the shaded sphere.
-    _earthData = null;
     debugState.earthPixelsReadable = false;
     debugState.earthPixelsError = "getImageData failed (tainted?)";
   }
+
+  _earthPriority = priority;
+  earthTexture.img = img;
+  _earthData = imageData;
+  debugState.earthImgLoaded = true;
+  debugState.earthImgError = null;
+  debugState.earthSource = sourceLabel;
+  debugState.earthUrl = sourceUrl;
 }
 
 function loadImageIntoEarthTexture(url, priority, sourceLabel, objectUrlToRevoke = null) {
@@ -1115,6 +1136,13 @@ function _renderTexture3D(cache, data, ctx, cx, cy, r, rotY, rotX) {
 }
 
 function renderEarthTexture(ctx, cx, cy, r, rotY, rotX) {
+  if (_earthData) {
+    debugState.earthRenderMode = "projected-image";
+    _renderTexture3D(_earthCache, _earthData, ctx, cx, cy, r, rotY, rotX);
+    drawGlobeAtmosphere(ctx, cx, cy, r);
+    return;
+  }
+
   if (earthTexture.img) {
     debugState.earthRenderMode = "static-image";
     const img = earthTexture.img;
@@ -1131,6 +1159,7 @@ function renderEarthTexture(ctx, cx, cy, r, rotY, rotX) {
     ctx.clip();
     ctx.drawImage(img, ox, oy, drawW, drawH);
     ctx.restore();
+    drawGlobeAtmosphere(ctx, cx, cy, r);
     return;
   }
 
@@ -1144,6 +1173,32 @@ function renderEarthTexture(ctx, cx, cy, r, rotY, rotX) {
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, 6.2832);
   ctx.fill();
+  drawGlobeAtmosphere(ctx, cx, cy, r);
+}
+
+function drawGlobeAtmosphere(ctx, cx, cy, r) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.clip();
+
+  const lift = ctx.createRadialGradient(cx - r * 0.34, cy - r * 0.42, r * 0.12, cx, cy, r);
+  lift.addColorStop(0, "rgba(175, 215, 255, 0.18)");
+  lift.addColorStop(0.55, "rgba(46, 118, 174, 0.07)");
+  lift.addColorStop(1, "rgba(0, 0, 0, 0.18)");
+  ctx.globalCompositeOperation = "screen";
+  ctx.fillStyle = lift;
+  ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+
+  ctx.globalCompositeOperation = "source-over";
+  const rim = ctx.createRadialGradient(cx, cy, r * 0.72, cx, cy, r);
+  rim.addColorStop(0, "rgba(0, 0, 0, 0)");
+  rim.addColorStop(0.72, "rgba(69, 147, 214, 0.08)");
+  rim.addColorStop(1, "rgba(138, 199, 255, 0.28)");
+  ctx.fillStyle = rim;
+  ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+
+  ctx.restore();
 }
 
 // --- Solar system orbits (actual celestial positions) ---
