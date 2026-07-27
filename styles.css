@@ -59,13 +59,11 @@ summary:focus-visible,
 }
 
 .rasters-toggle {
-  position: fixed;
-  top: 10px;
-  left: 220px;
-  z-index: 6;
-  padding: 6px 10px;
+  justify-self: start;
+  min-height: 42px;
+  padding: 0.72rem 0.9rem;
   border: 1px solid rgba(200, 220, 245, 0.18);
-  border-radius: 10px;
+  border-radius: 12px;
   background: rgba(10, 18, 28, 0.55);
   color: rgba(210, 230, 255, 0.82);
   font: 12px/1.1 "IBM Plex Mono", monospace;
@@ -78,61 +76,31 @@ summary:focus-visible,
 main {
   max-width: 1120px;
   margin: 0 auto;
-  padding: 24px 16px 40px;
+  padding: 10px 16px 40px;
 }
 
-.hero {
+.world-controls {
   display: grid;
   gap: 18px;
   padding: 18px 18px 16px;
-  margin-bottom: 20px;
+  margin-top: 18px;
   border: 1px solid rgba(140, 168, 186, 0.16);
-  border-radius: 24px;
+  border-radius: 16px;
   background: rgba(6, 10, 18, 0.72);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.24);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
 
-.hero-copy {
-  display: grid;
-  gap: 8px;
-}
-
-.eyebrow {
-  margin: 0;
-  color: rgba(149, 255, 184, 0.9);
-  font: 12px/1.1 "IBM Plex Mono", monospace;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-.hero h1 {
-  margin: 0;
-  font-size: clamp(2.4rem, 5vw, 4.4rem);
-  line-height: 0.96;
-  letter-spacing: -0.04em;
-}
-
-.lede {
-  max-width: 64ch;
-  margin: 0;
-  color: rgba(212, 229, 243, 0.92);
-  font-size: 1.02rem;
-  line-height: 1.5;
-}
-
 .control-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: 10px 14px;
-  align-items: center;
+  align-items: end;
 }
 
 .control-panel label,
-.country-summary,
-.legend summary,
-.legend p {
+.country-summary {
   font-family: "IBM Plex Mono", monospace;
 }
 
@@ -141,6 +109,12 @@ main {
   font-size: 0.78rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.control-field {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
 }
 
 .control-panel input,
@@ -167,29 +141,12 @@ main {
   text-transform: uppercase;
 }
 
-.legend {
-  padding: 12px 14px;
-  border: 1px solid rgba(140, 168, 186, 0.16);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.legend summary {
-  cursor: pointer;
-  color: #edf6ff;
-  font-size: 0.82rem;
-}
-
-.legend p {
-  margin: 10px 0 0;
-  color: rgba(212, 229, 243, 0.86);
-  font-size: 0.82rem;
-  line-height: 1.5;
-}
-
-.orb-panel,
 .country-list-section {
   margin-top: 18px;
+}
+
+.orb-panel {
+  margin-top: 0;
 }
 
 .starfield-canvas {
@@ -209,7 +166,7 @@ main {
   aspect-ratio: 1;
   border-radius: 50%;
   display: block;
-  margin-bottom: 24px;
+  margin-bottom: 0;
 }
 
 .country-list {
@@ -413,7 +370,7 @@ main {
     padding: 16px 12px 32px;
   }
 
-  .hero {
+  .world-controls {
     padding: 16px 14px;
   }
 

@@ -19,54 +19,8 @@
   <body>
     <canvas id="starfield-canvas" class="starfield-canvas"></canvas>
     <div id="build-tag" class="build-tag"></div>
-    <button
-      id="rasters-toggle"
-      class="rasters-toggle"
-      type="button"
-      aria-label="Toggle weather raster overlays"
-    >Rasters: Off</button>
     <main>
-      <header class="hero" aria-labelledby="world-title">
-        <div class="hero-copy">
-          <p class="eyebrow">Live globe briefing</p>
-          <h1 id="world-title">World</h1>
-          <p class="lede">
-            A browser-first world view with weather, country-linked headlines, and transliterated text.
-            Search or jump to a country to cut through the long feed.
-          </p>
-        </div>
-
-        <div class="control-panel" aria-label="World list controls">
-          <label for="country-filter">Search countries</label>
-          <input
-            id="country-filter"
-            type="search"
-            inputmode="search"
-            autocomplete="off"
-            placeholder="Country, code, headline, description"
-          />
-
-          <label for="country-jump">Jump to country</label>
-          <select id="country-jump">
-            <option value="">Jump to country…</option>
-          </select>
-
-          <p id="country-summary" class="country-summary" aria-live="polite">Loading countries…</p>
-        </div>
-
-        <details class="legend">
-          <summary>How to read this</summary>
-          <p>
-            The orb shows the globe and refreshed weather layer. Each country row shows a filtered headline when available,
-            the transliterated "ÐΛ Core + kit" version, and an English translation. Raster overlays
-            can be toggled on or off.
-          </p>
-        </details>
-
-      </header>
-
-      <section class="orb-panel" aria-labelledby="globe-title">
-        <h2 id="globe-title" class="sr-only">Weather globe</h2>
+      <section class="orb-panel" aria-label="Earth">
         <canvas
           id="weather-orb-canvas"
           class="weather-orb-canvas"
@@ -74,6 +28,37 @@
           height="960"
           aria-label="Rotating earth weather simulation"
         ></canvas>
+      </section>
+
+      <section class="world-controls" aria-label="World list controls">
+        <div class="control-panel">
+          <div class="control-field">
+            <label for="country-filter" class="sr-only">Filter</label>
+            <input
+              id="country-filter"
+              type="search"
+              inputmode="search"
+              autocomplete="off"
+              aria-label="Filter"
+            />
+          </div>
+
+          <div class="control-field">
+            <label for="country-jump" class="sr-only">Select</label>
+            <select id="country-jump">
+              <option value=""></option>
+            </select>
+          </div>
+
+          <button
+            id="rasters-toggle"
+            class="rasters-toggle"
+            type="button"
+            aria-label="Toggle weather raster overlays"
+          >Rasters: Off</button>
+
+          <p id="country-summary" class="country-summary" aria-live="polite" hidden></p>
+        </div>
       </section>
 
       <section class="country-list-section" aria-labelledby="country-list-heading">

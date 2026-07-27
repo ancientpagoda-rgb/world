@@ -34,7 +34,7 @@ function syncCountryControls(countries) {
 
   if (countryUi.jumpSelect) {
     const currentValue = countryUi.jumpSelect.value;
-    countryUi.jumpSelect.innerHTML = '<option value="">Jump to country…</option>';
+    countryUi.jumpSelect.innerHTML = '<option value=""></option>';
     for (const item of countries) {
       const option = document.createElement("option");
       option.value = item._rowId || "";
@@ -47,21 +47,10 @@ function syncCountryControls(countries) {
   }
 }
 
-function updateCountrySummary(visibleCount, totalCount, query = "") {
+function updateCountrySummary() {
   if (!countryUi.summary) return;
-  if (!totalCount) {
-    countryUi.summary.textContent = "Loading countries…";
-    return;
-  }
-  if (!visibleCount) {
-    countryUi.summary.textContent = query
-      ? `No matches for “${query}”.`
-      : "No countries available.";
-    return;
-  }
-  countryUi.summary.textContent = query
-    ? `Showing ${visibleCount.toLocaleString()} of ${totalCount.toLocaleString()} countries for “${query}”.`
-    : `Showing ${visibleCount.toLocaleString()} countries.`;
+  countryUi.summary.textContent = "";
+  countryUi.summary.hidden = true;
 }
 
 async function applyCountryFilter() {
@@ -149,6 +138,7 @@ const DEVANAGARI_RE = /[\u0900-\u097F]/;
 const HAN_RE = /[\u3400-\u9FFF\uF900-\uFAFF]/;
 const PinyinProImportUrl = "https://esm.sh/pinyin-pro@3.26.0?bundle";
 let pinyinProPromise = null;
+const ENGLISH_TRANSLATION_UNAVAILABLE = "English translation unavailable";
 const TONE_SUPERSCRIPTS = {
   "1": "¹",
   "2": "²",
@@ -177,6 +167,17 @@ const ENGLISH_HINT_WORDS = new Set([
   "after",
   "as",
   "that",
+  "this",
+  "it",
+  "be",
+  "been",
+  "can",
+  "could",
+  "will",
+  "would",
+  "about",
+  "into",
+  "over",
 ]);
 
 const DA_ALFABET_TRANSLATOR = {
@@ -584,9 +585,13 @@ function normalizeEnglishForDa(input = "") {
 function isProbablyEnglishText(text) {
   const input = String(text || "").trim();
   if (!input) return false;
-  if (/[^\x00-\x7F]/.test(input)) return false;
+  if (containsNonLatinLetters(input)) return false;
 
-  const words = input.toLowerCase().match(/[a-z']+/g) || [];
+  const words = input
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .match(/[a-z']+/g) || [];
   if (words.length < 4) return false;
 
   let hits = 0;
@@ -596,15 +601,30 @@ function isProbablyEnglishText(text) {
   return hits >= 2;
 }
 
+function containsNonLatinLetters(text = "") {
+  for (const char of String(text || "")) {
+    if (/\p{L}/u.test(char) && !/\p{Script=Latin}/u.test(char)) return true;
+  }
+  return false;
+}
+
+function isLikelyAlreadyEnglish(text = "", language = "") {
+  const input = String(text || "").trim();
+  if (!input) return false;
+  if (containsNonLatinLetters(input)) return false;
+  if (language === "en") return true;
+  return isProbablyEnglishText(input);
+}
+
 async function toDaDisplay(input = "", language = "") {
   const text = String(input || "");
   if (!text) return "";
   const { body, suffix } = splitSourceSuffix(text);
   const sourceText = body || text;
-  if (language === "hi" || DEVANAGARI_RE.test(text)) {
+  if (DEVANAGARI_RE.test(sourceText)) {
     return `${transliterateDevanagari(sourceText)}${suffix}`.trim();
   }
-  if (language === "zh" || HAN_RE.test(text)) {
+  if (HAN_RE.test(sourceText)) {
     return `${await transliterateChinese(sourceText)}${suffix}`.trim();
   }
   const normalized = isProbablyEnglishText(sourceText)
@@ -636,13 +656,17 @@ function splitSourceSuffix(text) {
 async function toEnglishDisplay(input = "", language = "") {
   const text = String(input || "").trim();
   if (!text) return "";
-  if (language === "en") return text;
-  if (!language && isProbablyEnglishText(text)) return text;
+  if (isLikelyAlreadyEnglish(text, language)) return text;
   const cacheKey = `${language || "auto"}::${text}`;
   if (englishTranslationCache.has(cacheKey)) return englishTranslationCache.get(cacheKey);
 
   const { body, suffix } = splitSourceSuffix(text);
   const sourceText = body || text;
+  if (isLikelyAlreadyEnglish(sourceText, language)) {
+    const alreadyEnglish = `${sourceText}${suffix}`.trim();
+    englishTranslationCache.set(cacheKey, alreadyEnglish);
+    return alreadyEnglish;
+  }
 
   try {
     const url = new URL("https://translate.googleapis.com/translate_a/single");
@@ -652,7 +676,10 @@ async function toEnglishDisplay(input = "", language = "") {
     url.searchParams.set("dt", "t");
     url.searchParams.set("q", sourceText);
 
-    const data = await fetch(url.toString()).then((res) => res.json());
+    const data = await fetch(url.toString()).then((res) => {
+      if (!res.ok) throw new Error(`translate request failed: ${res.status}`);
+      return res.json();
+    });
     const translated = Array.isArray(data?.[0])
       ? data[0]
           .map((part) => (Array.isArray(part) ? String(part[0] || "") : ""))
@@ -668,7 +695,7 @@ async function toEnglishDisplay(input = "", language = "") {
     console.warn("English translation fallback:", err);
   }
 
-  const fallback = `${sourceText}${suffix}`.trim();
+  const fallback = `${ENGLISH_TRANSLATION_UNAVAILABLE}${suffix}`.trim();
   englishTranslationCache.set(cacheKey, fallback);
   return fallback;
 }
