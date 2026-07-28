@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
+import io
 import html
 import json
 import re
 import time
 import unicodedata
+import tarfile
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -18,7 +20,8 @@ WORLD_BANK_COUNTRIES = "https://api.worldbank.org/v2/country/all?format=json&per
 WORLD_BANK_POPULATION = (
     "https://api.worldbank.org/v2/country/all/indicator/SP.POP.TOTL?format=json&per_page=400&mrnev=1"
 )
-REST_COUNTRIES = "https://restcountries.com/v3.1/all?fields=cca2,languages"
+WORLD_COUNTRIES_TARBALL = "https://registry.npmjs.org/world-countries/-/world-countries-5.1.0.tgz"
+COUNTRY_CODES_TARBALL = "https://registry.npmjs.org/country-codes-list/-/country-codes-list-3.1.1.tgz"
 
 LANGUAGE_MAP = {
     "afr": "af",
@@ -54,6 +57,7 @@ LANGUAGE_MAP = {
     "kat": "ka",
     "kaz": "kk",
     "khm": "km",
+    "kal": "kl",
     "kin": "rw",
     "kir": "ky",
     "kor": "ko",
@@ -69,6 +73,7 @@ LANGUAGE_MAP = {
     "nld": "nl",
     "nor": "no",
     "pan": "pa",
+    "pap": "pap",
     "pol": "pl",
     "por": "pt",
     "ron": "ro",
@@ -91,10 +96,99 @@ LANGUAGE_MAP = {
     "urd": "ur",
     "uzb": "uz",
     "vie": "vi",
+    "zho-hans": "zh",
+    "zho-hant": "zh",
     "zho": "zh",
 }
 
-LANGUAGE_OVERRIDE = {
+LANGUAGE_NAME_ALIASES = {
+    "afrikaans": "af",
+    "albanian": "sq",
+    "amharic": "am",
+    "arabic": "ar",
+    "armenian": "hy",
+    "austro bavarian german": "de",
+    "aymara": "ay",
+    "berber": "ber",
+    "bosnian": "bs",
+    "burmese": "my",
+    "catalan": "ca",
+    "castilian": "es",
+    "chinese": "zh",
+    "croatian": "hr",
+    "czech": "cs",
+    "dari": "fa",
+    "dhivehi": "dv",
+    "divehi": "dv",
+    "dutch": "nl",
+    "english": "en",
+    "estonian": "et",
+    "farsi": "fa",
+    "fijian": "fj",
+    "french": "fr",
+    "fulah": "ff",
+    "german": "de",
+    "greek": "el",
+    "greenlandic": "kl",
+    "guarani": "gn",
+    "guarani": "gn",
+    "hassaniya": "ar",
+    "hindi": "hi",
+    "hungarian": "hu",
+    "igbo": "ig",
+    "irish": "ga",
+    "italian": "it",
+    "japanese": "ja",
+    "khmer": "km",
+    "korean": "ko",
+    "kyrgyz": "ky",
+    "lao": "lo",
+    "latvian": "lv",
+    "lithuanian": "lt",
+    "maldivian": "dv",
+    "macedonian": "mk",
+    "moldavian": "ro",
+    "montenegrin": "srp",
+    "nepali": "ne",
+    "pashto": "ps",
+    "papiamento": "pap",
+    "persian": "fa",
+    "persian farsi": "fa",
+    "polish": "pl",
+    "portuguese": "pt",
+    "quechua": "qu",
+    "romanian": "ro",
+    "russian": "ru",
+    "scots gaelic": "gd",
+    "serbian": "srp",
+    "sinhala": "si",
+    "slovak": "sk",
+    "slovenian": "sl",
+    "somali": "so",
+    "spanish": "es",
+    "sotho": "st",
+    "swahili": "sw",
+    "swati": "ss",
+    "tamil": "ta",
+    "tajik": "tg",
+    "thai": "th",
+    "tswana": "tn",
+    "turkish": "tr",
+    "turkmen": "tk",
+    "ukrainian": "uk",
+    "urdu": "ur",
+    "uzbek": "uz",
+    "valencian": "ca",
+    "vietnamese": "vi",
+    "xhosa": "xh",
+    "yoruba": "yo",
+    "zulu": "zu",
+    "zhongwen": "zh",
+    "zh-hans": "zh",
+    "zh-hant": "zh",
+}
+
+COUNTRY_LANGUAGE_OVERRIDE = {
     "IN": "hi",
     "PK": "ur",
     "BD": "bn",
@@ -165,23 +259,88 @@ def fetch_json(url: str):
         return json.load(response)
 
 
-def choose_language(iso2: str, languages: dict | None) -> str:
-    if iso2 in LANGUAGE_OVERRIDE:
-        return LANGUAGE_OVERRIDE[iso2]
+def fetch_tarball_json(url: str, member_path: str):
+    request = urllib.request.Request(url, headers={"User-Agent": HEADERS["User-Agent"]})
+    with urllib.request.urlopen(request, timeout=30) as response:
+        payload = response.read()
+    with tarfile.open(fileobj=io.BytesIO(payload), mode="r:gz") as archive:
+        member = archive.extractfile(member_path)
+        if member is None:
+            raise FileNotFoundError(member_path)
+        return json.load(member)
 
-    if not languages:
+
+def fetch_tarball_text(url: str, member_path: str) -> str:
+    request = urllib.request.Request(url, headers={"User-Agent": HEADERS["User-Agent"]})
+    with urllib.request.urlopen(request, timeout=30) as response:
+        payload = response.read()
+    with tarfile.open(fileobj=io.BytesIO(payload), mode="r:gz") as archive:
+        member = archive.extractfile(member_path)
+        if member is None:
+            raise FileNotFoundError(member_path)
+        return member.read().decode("utf-8")
+
+
+def normalize_language_code(code: str | None) -> str:
+    if not code:
         return "en"
+    return LANGUAGE_MAP.get(code.lower(), code.lower())
 
-    keys = list(languages.keys())
-    non_english = [key for key in keys if key != "eng" and key in LANGUAGE_MAP]
-    if non_english:
-        return LANGUAGE_MAP[non_english[0]]
 
-    for key in keys:
-        if key in LANGUAGE_MAP:
-            return LANGUAGE_MAP[key]
+def normalize_language_name(name: str) -> str:
+    text = unicodedata.normalize("NFKD", name)
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = text.lower()
+    text = re.sub(r"[^a-z0-9]+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
 
-    return "en"
+
+def load_country_language_sources():
+    world_countries = fetch_tarball_json(WORLD_COUNTRIES_TARBALL, "package/countries.json")
+    country_codes = fetch_tarball_text(COUNTRY_CODES_TARBALL, "package/dist/countriesData.js")
+
+    country_language_names: dict[str, list[str]] = {}
+    country_primary_language: dict[str, str] = {}
+    language_name_to_code: dict[str, str] = {}
+
+    pattern = re.compile(
+        r'countryNameEn: "([^"]*)".*?countryCode: "([A-Z]{2})".*?countryCodeAlpha3: "([A-Z]{3})".*?officialLanguageCode: "([^"]*)".*?officialLanguageNameEn: "([^"]*)"',
+        re.S,
+    )
+    for match in pattern.finditer(country_codes):
+        _, iso2, _, official_language_code, primary_name = match.groups()
+        primary_code = normalize_language_code(official_language_code)
+        if iso2 and primary_code:
+            country_primary_language[iso2] = primary_code
+        normalized_name = normalize_language_name(primary_name)
+        if normalized_name and normalized_name not in language_name_to_code:
+            language_name_to_code[normalized_name] = primary_code
+
+    for row in world_countries:
+        if not isinstance(row, dict):
+            continue
+        iso2 = str(row.get("cca2") or "").strip().upper()
+        if not iso2:
+            continue
+        languages = row.get("languages") or {}
+        if isinstance(languages, dict):
+            country_language_names[iso2] = [str(value) for value in languages.values() if value]
+
+    return country_language_names, country_primary_language, language_name_to_code
+
+
+def choose_language(iso2: str, language_names: list[str] | None, fallback_code: str | None, language_name_to_code: dict[str, str]) -> str:
+    if iso2 in COUNTRY_LANGUAGE_OVERRIDE:
+        return COUNTRY_LANGUAGE_OVERRIDE[iso2]
+
+    for name in language_names or []:
+        normalized = normalize_language_name(name)
+        code = language_name_to_code.get(normalized) or LANGUAGE_NAME_ALIASES.get(normalized)
+        code = normalize_language_code(code)
+        if code and code != "en":
+            return code
+
+    return normalize_language_code(fallback_code)
 
 
 def strip_html(text: str) -> str:
@@ -356,15 +515,13 @@ def fetch_wikipedia_summary_in_lang(name: str, lang: str) -> str | None:
 def main():
     meta_rows = fetch_json(WORLD_BANK_COUNTRIES)[1]
     population_rows = fetch_json(WORLD_BANK_POPULATION)[1]
-    rest_countries = fetch_json(REST_COUNTRIES)
+    country_language_names, country_primary_language, language_name_to_code = load_country_language_sources()
 
     meta_map = {
         row["iso2Code"]: row
         for row in meta_rows
         if row.get("region", {}).get("value") != "Aggregates"
     }
-    rest_map = {row["cca2"]: row for row in rest_countries if "cca2" in row}
-
     countries = []
     for row in population_rows:
         iso2 = row["country"]["id"]
@@ -378,7 +535,8 @@ def main():
                 "name": meta_map[iso2]["name"],
                 "population": int(row["value"]),
                 "year": row["date"],
-                "languages": rest_map.get(iso2, {}).get("languages", {}),
+                "languageNames": country_language_names.get(iso2, []),
+                "nativeLanguage": country_primary_language.get(iso2, "en"),
             }
         )
 
@@ -386,7 +544,12 @@ def main():
 
     output = []
     for index, country in enumerate(countries, start=1):
-        native_language = choose_language(country["iso2"], country["languages"])
+        native_language = choose_language(
+            country["iso2"],
+            country["languageNames"],
+            country["nativeLanguage"],
+            language_name_to_code,
+        )
         headline, headline_language = fetch_top_headline(country["name"], country["iso2"], native_language)
         description = fetch_wikipedia_summary_in_lang(country["name"], native_language)
 

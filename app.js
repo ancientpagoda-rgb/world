@@ -2466,9 +2466,6 @@ async function renderCountries(countries) {
     const population = document.createElement("div");
     population.className = "country-population";
     population.appendChild(document.createTextNode(populationFormatter.format(item.population)));
-    const year = document.createElement("span");
-    year.textContent = item.populationYear || item.year || "";
-    population.appendChild(year);
 
     article.setAttribute("aria-labelledby", name.id);
     article.append(rank, thumbWrap, body, population);
