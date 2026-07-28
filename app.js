@@ -2451,7 +2451,6 @@ async function loadCountries() {
   await applyCountryFilter();
 }
 
-initializeWeatherOrb();
 renderLoading();
 updateCountrySummary(0, 0);
 loadCountries().catch((err) => {

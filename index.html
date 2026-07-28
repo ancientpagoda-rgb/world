@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>World — globe briefing</title>
+    <title>World — country briefing</title>
     <meta
       name="description"
-      content="World is a browser-based globe briefing surface with refreshed weather, country-linked headlines, and search/navigation controls."
+      content="World is a browser-based country briefing surface with searchable headlines, translated summaries, and navigation controls."
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -17,18 +17,18 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <canvas id="starfield-canvas" class="starfield-canvas"></canvas>
     <div id="build-tag" class="build-tag"></div>
     <main>
-      <section class="orb-panel" aria-label="Earth">
-        <canvas
-          id="weather-orb-canvas"
-          class="weather-orb-canvas"
-          width="960"
-          height="960"
-          aria-label="Rotating earth weather simulation"
-        ></canvas>
-      </section>
+      <header class="hero">
+        <div>
+          <p class="eyebrow">World briefing</p>
+          <h1>World</h1>
+          <p class="lede">
+            Search a live country briefing list with headlines, translated snippets, and country shortcuts.
+            The globe is gone. The page is now about the list.
+          </p>
+        </div>
+      </header>
 
       <section class="world-controls" aria-label="World list controls">
         <div class="control-panel">
@@ -50,13 +50,6 @@
             </select>
           </div>
 
-          <button
-            id="rasters-toggle"
-            class="rasters-toggle"
-            type="button"
-            aria-label="Toggle weather raster overlays"
-          >Rasters: Off</button>
-
           <p id="country-summary" class="country-summary" aria-live="polite" hidden></p>
         </div>
       </section>
@@ -74,17 +67,7 @@
           document.body.classList.add("debug-mode");
         }
 
-        // Cache-bust app.js using earth-live.json (updated by CI).
-        // This avoids users getting stuck on a stale cached app.js on GitHub Pages.
-        let v = "";
-        try {
-          const meta = await fetch("./earth-live.json", { cache: "no-store" }).then((r) => r.json());
-          v = (typeof meta?.generatedAt === "string" && meta.generatedAt) || (typeof meta?.requestedTime === "string" && meta.requestedTime) || "";
-        } catch {
-          v = String(Date.now());
-        }
-
-        // app.js changes more frequently than earth-live.json; always bust it.
+        // app.js changes more frequently than the static data; always bust it.
         const appV = String(Date.now());
         const s = document.createElement("script");
         s.src = `./app.js?v=${encodeURIComponent(appV)}`;
@@ -96,23 +79,7 @@
         document.body.appendChild(s);
 
         const tag = document.getElementById("build-tag");
-        if (tag) tag.textContent = `World v1.0.6\nbuild ${v || ""}${v ? " | " : ""}app ${appV}\nagent: connected`;
-
-        const toggle = document.getElementById("rasters-toggle");
-        const rastersOn = () => searchParams.get("rasters") === "1";
-        const setToggleLabel = () => {
-          if (!toggle) return;
-          toggle.textContent = `Rasters: ${rastersOn() ? "On" : "Off"}`;
-        };
-        if (toggle) {
-          setToggleLabel();
-          toggle.addEventListener("click", () => {
-            const url = new URL(location.href);
-            if (url.searchParams.get("rasters") === "1") url.searchParams.delete("rasters");
-            else url.searchParams.set("rasters", "1");
-            location.href = url.toString();
-          });
-        }
+        if (tag) tag.textContent = `World v1.0.7\napp ${appV}\nagent: connected`;
 
       })();
     </script>

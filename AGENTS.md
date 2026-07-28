@@ -1,23 +1,13 @@
 # Session Summary
 
 ## Goals
-Interactive 3D globe visualization — canvas-based, no WebGL — showing Earth with textures, weather overlays (wind, temperature, precipitation, clouds), real HYG star catalog, solar system planets, country outlines, Wikipedia country news, and zoom/drag interaction.
+Interactive country briefing surface — searchable list, translated snippets, country outlines, and compact linked headlines.
 
 ## Completed features
 - **Country outline thumbnails** — small map inset next to each headline
-- **Back-face border culling** — skip country edges with z <= 0
-- **Static globe + rotating stars** — globe stays still unless dragged; stars, Milky Way, and planets rotate opposite to drag direction
-- **Star rotation fix** — stars drift opposite to drag (was same direction)
-- **Globe opacity fix** — solid `#040a12` fill behind globe circle
-- **Zoom** — mouse wheel + pinch zoom, range 0.3–4×
-- **Nullschool-style weather layers**:
-  - Simultaneous temperature/precipitation/clouds/wind (no cycling)
-  - 2500 wind particles advected each frame
-  - Radar-style precipitation colors
-  - Open-Meteo API with wind U/V
-- **All-axis rotation** — replaced single `globeRotation` with `globeRotY` + `globeRotX`, per-pixel 3D rotation matrix in texture rendering, clamped pitch ±90°
-- **Dynamic night shadow** — night shadow and city-lights mask gradients computed from sun RA/Dec (celestial mechanics) projected into view space, correctly tracking globe rotation
-- **Embeddable widget** — `widget/` directory with rollup-bundled `earth-globe-widget`
+- **Search + jump controls** — filter and jump to countries from the briefing list
+- **Translated snippets** — original text, transliteration, and English translation columns
+- **Static data refresh** — country data and assets are served from the repo and refreshed by CI
 
 ## Build/dist commands
 - `cd widget && npm run build` — builds to `widget/dist/earth-globe.js`, `.min.js`, `.esm.js`, `.esm.min.js`
