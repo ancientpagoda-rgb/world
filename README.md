@@ -33,5 +33,5 @@ The smoke test starts its own local static server unless `SMOKE_URL` is set.
 
 ## Notes / accuracy
 
-- Population values come from the latest available World Bank `SP.POP.TOTL` rows.
+- Population values are refreshed from the latest available World Bank `SP.POP.TOTL` rows on page load and on a repeating timer, with `world-data.json` as fallback.
 - Headlines come from Google News RSS searches and are filtered for country-name relevance. If no clean country-specific match is found, the row should show no headline rather than a misleading one.

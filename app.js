@@ -1,4 +1,6 @@
 const populationFormatter = new Intl.NumberFormat("en-US");
+const WORLD_BANK_POPULATION_URL = "https://api.worldbank.org/v2/country/all/indicator/SP.POP.TOTL?format=json&mrv=1&per_page=500";
+const LIVE_POPULATION_REFRESH_MS = 6 * 60 * 60 * 1000;
 const countryUi = {
   root: null,
   filterInput: null,
@@ -7,6 +9,8 @@ const countryUi = {
 };
 
 let allCountries = [];
+let livePopulationRefreshTimer = null;
+let livePopulationRefreshInFlight = null;
 
 function normalizeSearchText(value = "") {
   return String(value).toLowerCase().normalize("NFKD");
@@ -24,6 +28,104 @@ function buildCountryRowId(item, index) {
   const raw = String(item.iso3 || item.name || `country-${index + 1}`).toLowerCase();
   const slug = raw.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   return slug ? `country-${slug}` : `country-${index + 1}`;
+}
+
+function normalizeIso3Code(value = "") {
+  return String(value || "").trim().toUpperCase();
+}
+
+function buildWorldBankPopulationMap(payload) {
+  const rows = Array.isArray(payload?.[1]) ? payload[1] : [];
+  const populations = new Map();
+
+  for (const row of rows) {
+    const iso3 = normalizeIso3Code(row?.countryiso3code || row?.country?.id || row?.country?.iso3);
+    const population = Number(row?.value);
+    const populationYear = String(row?.date || "").trim();
+
+    if (!iso3 || iso3.length !== 3 || !Number.isFinite(population)) continue;
+    populations.set(iso3, {
+      population,
+      populationYear,
+    });
+  }
+
+  return populations;
+}
+
+async function loadLivePopulationData() {
+  const response = await fetch(WORLD_BANK_POPULATION_URL, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`World Bank population request failed: ${response.status}`);
+  }
+  const payload = await response.json();
+  return buildWorldBankPopulationMap(payload);
+}
+
+function mergeLivePopulationData(countries, populationMap) {
+  return countries.map((item) => {
+    const live = populationMap.get(normalizeIso3Code(item.iso3));
+    if (!live) return item;
+    return {
+      ...item,
+      population: live.population,
+      populationYear: live.populationYear || item.populationYear || item.year || "",
+    };
+  });
+}
+
+async function refreshLivePopulationData() {
+  if (livePopulationRefreshInFlight) return livePopulationRefreshInFlight;
+  livePopulationRefreshInFlight = (async () => {
+    try {
+      const populationMap = await loadLivePopulationData();
+      const updatedCountries = mergeLivePopulationData(allCountries, populationMap);
+
+      let changed = false;
+      for (let index = 0; index < updatedCountries.length; index += 1) {
+        const next = updatedCountries[index];
+        const prev = allCountries[index];
+        if (next.population !== prev.population || next.populationYear !== prev.populationYear) {
+          changed = true;
+          break;
+        }
+      }
+      if (!changed) return;
+
+      allCountries = updatedCountries;
+      await applyCountryFilter();
+    } catch (err) {
+      console.warn("Failed to refresh live population data:", err);
+    }
+  })();
+  try {
+    await livePopulationRefreshInFlight;
+  } finally {
+    livePopulationRefreshInFlight = null;
+  }
+}
+
+function startLivePopulationRefreshLoop() {
+  if (!livePopulationRefreshTimer) {
+    livePopulationRefreshTimer = setInterval(() => {
+      void refreshLivePopulationData();
+    }, LIVE_POPULATION_REFRESH_MS);
+  }
+
+  if (!document.body?.dataset.populationRefreshBound) {
+    document.body.dataset.populationRefreshBound = "1";
+
+    // Refresh when the tab comes back into view so stale counts get corrected quickly.
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        void refreshLivePopulationData();
+      }
+    });
+
+    window.addEventListener("focus", () => {
+      void refreshLivePopulationData();
+    });
+  }
 }
 
 function syncCountryControls(countries) {
@@ -2346,7 +2448,7 @@ async function renderCountries(countries) {
     const h1 = document.createElement("span");
     h1.textContent = "Original";
     const h2 = document.createElement("span");
-    h2.textContent = "ÐΛ Core + kit";
+    h2.textContent = "phonetics";
     const h3 = document.createElement("span");
     h3.textContent = "English translation";
     header.append(h1, h2, h3);
@@ -2365,7 +2467,7 @@ async function renderCountries(countries) {
     population.className = "country-population";
     population.appendChild(document.createTextNode(populationFormatter.format(item.population)));
     const year = document.createElement("span");
-    year.textContent = item.year || "";
+    year.textContent = item.populationYear || item.year || "";
     population.appendChild(year);
 
     article.setAttribute("aria-labelledby", name.id);
@@ -2449,6 +2551,8 @@ async function loadCountries() {
     });
   }
   await applyCountryFilter();
+  void refreshLivePopulationData();
+  startLivePopulationRefreshLoop();
 }
 
 renderLoading();
