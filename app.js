@@ -14,7 +14,7 @@ function normalizeSearchText(value = "") {
 
 function buildCountrySearchIndex(item) {
   return normalizeSearchText(
-    [item.name, item.iso3, item.title, item.headline, item.text, item.description, item.year]
+    [item.name, item.iso3, item.title, item.headline, item.text, item.year]
       .filter(Boolean)
       .join(" "),
   );
@@ -118,7 +118,7 @@ const LOFI_GLOW_INTENSITY = 0.75; // 0..1
 const TEMP_OVERLAY_ALPHA_BASE = 0.10;
 const TEMP_OVERLAY_ALPHA_RANGE = 0.16;
 
-// Raster overlays can easily wash out the underlying satellite texture.
+// Raster overlays can easily wash out the underlying globe.
 // Keep them more subtle than the point-sampled overlays.
 const TEMP_RASTER_ALPHA_MUL = 0.45;
 const PRECIP_RASTER_ALPHA_MUL = 0.85;
@@ -724,185 +724,11 @@ async function loadStarCatalog() {
   }
 }
 
-// --- Satellite earth texture ---
-const EARTH_TEXTURE_URL = "./earth-live.jpg";
-const EARTH_TEXTURE_META_URL = "./earth-live.json";
-const EARTH_SNAPSHOT_ENDPOINT = "https://wvs.earthdata.nasa.gov/api/v1/snapshot";
-const EARTH_SNAPSHOT_LOOKBACK_DAYS = 7;
-const EARTH_SNAPSHOT_TIMEOUT_MS = 10000;
-const EARTH_LIVE_LAYER_CANDIDATES = [
-  "OCI_PACE_True_Color",
-  "VIIRS_NOAA21_CorrectedReflectance_TrueColor",
-  "VIIRS_NOAA20_CorrectedReflectance_TrueColor",
-  "VIIRS_SNPP_CorrectedReflectance_TrueColor",
-  "MODIS_Aqua_CorrectedReflectance_TrueColor",
-  "MODIS_Terra_CorrectedReflectance_TrueColor",
-];
-const earthTexture = { img: null };
 const debugState = {
-  earthImgLoaded: false,
-  earthImgError: null,
-  earthPixelsReadable: false,
-  earthPixelsError: null,
-  earthImgDims: "",
-  earthUrl: "",
-  earthSource: "none",
-  earthRenderMode: "none",
+  earthRenderMode: "base-sphere",
   tempRasterLoaded: false,
   precipRasterLoaded: false,
 };
-
-let _earthData = null;
-let _earthCache = { offscreen: null, r: 0, rotY: null, rotX: null };
-let _earthPriority = -1;
-
-function estimateImageBrightness(imageData) {
-  if (!imageData?.data?.length) return 0;
-  const d = imageData.data;
-  const stride = Math.max(4, Math.floor(d.length / 1600 / 4) * 4);
-  let total = 0;
-  let count = 0;
-  for (let i = 0; i < d.length; i += stride) {
-    if (d[i + 3] < 16) continue;
-    total += d[i] * 0.2126 + d[i + 1] * 0.7152 + d[i + 2] * 0.0722;
-    count += 1;
-  }
-  return count ? total / count : 0;
-}
-
-function setEarthTextureFromImage(img, priority, sourceLabel, sourceUrl) {
-  if (priority < _earthPriority) return;
-
-  const c = document.createElement("canvas");
-  c.width = img.width;
-  c.height = img.height;
-  const cx = c.getContext("2d");
-  cx.drawImage(img, 0, 0);
-  let imageData = null;
-  try {
-    imageData = cx.getImageData(0, 0, img.width, img.height);
-    const brightness = estimateImageBrightness(imageData);
-    if (priority > 0 && brightness < 18) {
-      debugState.earthImgError = `live snapshot rejected: too dark (${brightness.toFixed(1)})`;
-      return;
-    }
-    debugState.earthPixelsReadable = true;
-    debugState.earthPixelsError = null;
-  } catch {
-    // If the canvas becomes tainted for any reason, fall back to the shaded sphere.
-    debugState.earthPixelsReadable = false;
-    debugState.earthPixelsError = "getImageData failed (tainted?)";
-  }
-
-  _earthPriority = priority;
-  earthTexture.img = img;
-  _earthData = imageData;
-  debugState.earthImgLoaded = true;
-  debugState.earthImgError = null;
-  debugState.earthSource = sourceLabel;
-  debugState.earthUrl = sourceUrl;
-}
-
-function loadImageIntoEarthTexture(url, priority, sourceLabel, objectUrlToRevoke = null) {
-  const img = new Image();
-  img.crossOrigin = "anonymous";
-  img.onload = () => {
-    setEarthTextureFromImage(img, priority, sourceLabel, url);
-    debugState.earthImgDims = `${img.naturalWidth || img.width}x${img.naturalHeight || img.height}`;
-    if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
-  };
-  img.onerror = () => {
-    if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
-    if (priority >= _earthPriority) {
-      if (priority === 0) {
-        debugState.earthImgLoaded = false;
-        debugState.earthImgError = "fallback image load failed";
-      } else if (_earthPriority === 0) {
-        debugState.earthImgError = "live snapshot unavailable; using fallback";
-      } else {
-        debugState.earthImgError = "live snapshot load failed";
-      }
-    }
-  };
-  img.src = url;
-  return img;
-}
-
-async function tryLoadLiveEarthTexture() {
-  const now = new Date();
-  for (let back = 0; back < EARTH_SNAPSHOT_LOOKBACK_DAYS; back++) {
-    const day = new Date(Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate() - back,
-    )).toISOString().slice(0, 10);
-
-    for (const layer of EARTH_LIVE_LAYER_CANDIDATES) {
-      const params = new URLSearchParams({
-        REQUEST: "GetSnapshot",
-        LAYERS: layer,
-        CRS: "EPSG:4326",
-        BBOX: "-90,-180,90,180",
-        FORMAT: "image/jpeg",
-        WIDTH: "2048",
-        HEIGHT: "1024",
-        TIME: day,
-      });
-      const url = `${EARTH_SNAPSHOT_ENDPOINT}?${params.toString()}`;
-      const controller = new AbortController();
-      const timeout = window.setTimeout(() => controller.abort(), EARTH_SNAPSHOT_TIMEOUT_MS);
-
-      try {
-        const response = await fetch(url, {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-        if (!response.ok) continue;
-
-        const dataPresent = response.headers.get("data-present");
-        if (dataPresent && dataPresent.toLowerCase() !== "true") continue;
-
-        const blob = await response.blob();
-        if (!blob.size) continue;
-
-        const objectUrl = URL.createObjectURL(blob);
-        loadImageIntoEarthTexture(objectUrl, 1, `live ${layer} ${day}`, objectUrl);
-        return true;
-      } catch {
-        // Try the next layer/day.
-      } finally {
-        window.clearTimeout(timeout);
-      }
-    }
-  }
-
-  return false;
-}
-
-function loadEarthTexture() {
-  // Start with the CI-built fallback so the globe renders immediately, then
-  // replace it with the freshest NASA Worldview snapshot we can fetch.
-  let fallbackVersion = String(Date.now());
-  fetch(EARTH_TEXTURE_META_URL, { cache: "no-store" })
-    .then((r) => r.json())
-    .then((meta) => {
-      fallbackVersion = typeof meta?.generatedAt === "string" && meta.generatedAt
-        ? meta.generatedAt
-        : typeof meta?.acquisitionTime === "string" && meta.acquisitionTime
-          ? meta.acquisitionTime
-          : fallbackVersion;
-    })
-    .catch(() => {
-      // Keep the timestamp fallback.
-    })
-    .finally(() => {
-      const fallbackUrl = `${EARTH_TEXTURE_URL}?v=${encodeURIComponent(fallbackVersion)}`;
-      loadImageIntoEarthTexture(fallbackUrl, 0, "fallback asset");
-    });
-
-    // Fire and forget the live path. If it succeeds, it takes over.
-  tryLoadLiveEarthTexture().catch(() => {});
-}
 
 // --- Weather raster overlays (generated by CI) ---
 const weatherRaster = {
@@ -960,8 +786,7 @@ function loadWeatherRasters() {
 
 function rastersEnabled() {
   try {
-    // Default to the point-sampled layers (the look you get with ?rasters=0).
-    // Raster overlays are opt-in because they can wash out the base satellite texture.
+    // Raster overlays are opt-in because they can wash out the base globe.
     return new URLSearchParams(location.search).get("rasters") === "1";
   } catch {
     return false;
@@ -972,11 +797,6 @@ function drawDebugHud(ctx, canvas) {
   const tag = document.getElementById("build-tag")?.textContent || "";
   const lines = [
     tag,
-    debugState.earthUrl ? `earth: ${debugState.earthUrl}` : "earth: (no url)",
-    `earth source: ${debugState.earthSource}`,
-    debugState.earthImgDims ? `earth dims: ${debugState.earthImgDims}` : "earth dims: (unknown)",
-    `earth img loaded: ${debugState.earthImgLoaded ? "yes" : "no"}${debugState.earthImgError ? ` (${debugState.earthImgError})` : ""}`,
-    `earth pixels readable: ${debugState.earthPixelsReadable ? "yes" : "no"}${debugState.earthPixelsError ? ` (${debugState.earthPixelsError})` : ""}`,
     `earth render: ${debugState.earthRenderMode}`,
     `weather rasters: temp=${debugState.tempRasterLoaded ? "yes" : "no"} precip=${debugState.precipRasterLoaded ? "yes" : "no"}`,
     `rasters enabled: ${rastersEnabled() ? "yes" : "no"}`,
@@ -998,19 +818,6 @@ function drawDebugHud(ctx, canvas) {
     ctx.fillText(lines[i], padX, padY + i * lh);
   }
 
-  // Thumbnail: prove the satellite image is drawable in-canvas.
-  if (earthTexture.img) {
-    const tw = 180;
-    const th = 90;
-    const tx = Math.max(padX + 520, canvas.width - (tw + 16));
-    const ty = padY;
-    ctx.globalAlpha = 0.9;
-    ctx.drawImage(earthTexture.img, tx, ty, tw, th);
-    ctx.globalAlpha = 1;
-    ctx.strokeStyle = "rgba(210,230,255,0.35)";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(tx, ty, tw, th);
-  }
   ctx.restore();
 }
 
@@ -1120,7 +927,7 @@ function _renderTexture3D(cache, data, ctx, cx, cy, r, rotY, rotX) {
   const imgData = octx.createImageData(size, size);
   const pixels = imgData.data;
   const d = data.data, iw = data.width, ih = data.height;
-  // Slight lift so the satellite texture reads better on dark themes.
+  // Slight lift so the raster overlays read better on dark themes.
   const boost = 1.08;
   const lift = 6;
   const cY = Math.cos(-rotY), sY = Math.sin(-rotY);
@@ -1163,34 +970,7 @@ function _renderTexture3D(cache, data, ctx, cx, cy, r, rotY, rotX) {
 }
 
 function renderEarthTexture(ctx, cx, cy, r, rotY, rotX) {
-  if (_earthData) {
-    debugState.earthRenderMode = "projected-image";
-    _renderTexture3D(_earthCache, _earthData, ctx, cx, cy, r, rotY, rotX);
-    drawGlobeAtmosphere(ctx, cx, cy, r);
-    return;
-  }
-
-  if (earthTexture.img) {
-    debugState.earthRenderMode = "static-image";
-    const img = earthTexture.img;
-    const iw = img.width;
-    const ih = img.height;
-    const drawW = (2 * r) * (iw / ih);
-    const drawH = 2 * r;
-    const ox = cx - drawW / 2;
-    const oy = cy - drawH / 2;
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, 6.2832);
-    ctx.clip();
-    ctx.drawImage(img, ox, oy, drawW, drawH);
-    ctx.restore();
-    drawGlobeAtmosphere(ctx, cx, cy, r);
-    return;
-  }
-
-  debugState.earthRenderMode = "fallback";
+  debugState.earthRenderMode = "base-sphere";
 
   const g = ctx.createRadialGradient(cx - r * 0.25, cy - r * 0.25, r * 0.15, cx, cy, r);
   g.addColorStop(0, "rgba(70, 120, 170, 0.55)");
@@ -2095,7 +1875,7 @@ function drawWeatherOrbFrame(ctx, canvas, timeMs) {
   ctx.fillStyle = "#09131f";
   ctx.fillRect(0, 0, width, height);
 
-  // Base fill behind the texture (keeps dark theme, but avoids crushing blacks)
+  // Base fill behind the globe keeps the dark theme, but avoids crushing blacks.
   ctx.fillStyle = "#0b253c";
   ctx.beginPath();
   ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
@@ -2277,7 +2057,6 @@ function initializeWeatherOrb() {
   resizeOrb();
   window.addEventListener("resize", resizeOrb);
 
-  loadEarthTexture();
   loadStarCatalog();
   loadWeatherGeometry();
 
@@ -2526,8 +2305,6 @@ async function renderCountries(countries) {
 
   for (let index = 0; index < countries.length; index += 1) {
     const item = countries[index];
-    const desc = item.description || "";
-    const descClamped = desc.length > 280 ? desc.slice(0, 277) + "..." : desc;
     const thumbUrl = getCountryThumbnailDataURL(item.iso3, 52, 39);
     const rowId = item._rowId || buildCountryRowId(item, index);
 
@@ -2583,12 +2360,6 @@ async function renderCountries(countries) {
     hydrateNewsItem(row, headlineText, item.language || "").catch((err) => reportFatal(err));
 
     body.append(name, code, header, newsList);
-
-    if (descClamped) {
-      const drow = renderNewsItem({ text: descClamped, language: item.language || "" });
-      newsList.appendChild(drow);
-      hydrateNewsItem(drow, descClamped, item.language || "").catch((err) => reportFatal(err));
-    }
 
     const population = document.createElement("div");
     population.className = "country-population";
