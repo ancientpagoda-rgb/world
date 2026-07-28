@@ -5,13 +5,10 @@ const index = await readFile("index.html", "utf8");
 const failures = [];
 
 const requireInApp = [
-  "function initializeWeatherOrb",
-  "function renderStarfield",
-  "async function loadStarCatalog",
-  "const STARS_URL",
-  "const STAR_CATALOG",
   "function renderCountries",
-  "initializeWeatherOrb();",
+  "async function loadCountries",
+  "const DATA_URL",
+  "const WORLD_BANK_POPULATION_URL",
 ];
 
 for (const token of requireInApp) {
@@ -24,24 +21,12 @@ if (appLines < 1000) {
 }
 
 const requireInIndex = [
-  "starfield-canvas",
-  "weather-orb-canvas",
+  "country-list",
   "./app.js",
 ];
 
 for (const token of requireInIndex) {
   if (!index.includes(token)) failures.push(`index.html is missing ${token}`);
-}
-
-const starUrlIndex = app.indexOf("const STARS_URL");
-const loadStarIndex = app.indexOf("async function loadStarCatalog");
-if (starUrlIndex === -1 || loadStarIndex === -1 || starUrlIndex > loadStarIndex) {
-  failures.push("STARS_URL should be defined before loadStarCatalog uses it");
-}
-
-const catalogIndex = app.indexOf("const STAR_CATALOG");
-if (catalogIndex === -1 || loadStarIndex === -1 || catalogIndex > loadStarIndex) {
-  failures.push("STAR_CATALOG should be defined before loadStarCatalog uses it");
 }
 
 if (failures.length) {

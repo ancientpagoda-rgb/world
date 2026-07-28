@@ -28,10 +28,10 @@ The smoke test starts its own local static server unless `SMOKE_URL` is set.
 
 ## Data
 
-- `world-data.json` — country dataset (name, iso3, population, optional filtered headline)
+- `world-data.json` — country dataset (name, iso3, population, nativeLanguage, optional filtered headline)
 - `stars.json` — preserved static asset bundle for country thumbnail generation and related overlays
 
 ## Notes / accuracy
 
 - Population values are refreshed from the latest available World Bank `SP.POP.TOTL` rows on page load and on a repeating timer, with `world-data.json` as fallback.
-- Headlines come from Google News RSS searches and are filtered for country-name relevance. If no clean country-specific match is found, the row should show no headline rather than a misleading one.
+- Headlines come from Google News RSS searches and are filtered for country-name relevance. The generator keeps a native-language source preference per country and avoids overwriting it with fallback headline languages.

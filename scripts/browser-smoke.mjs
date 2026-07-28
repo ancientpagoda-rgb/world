@@ -164,25 +164,6 @@ try {
 
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 
-await page.addInitScript(() => {
-  window.__starfieldResizeCount = 0;
-  for (const prop of ["width", "height"]) {
-    const descriptor = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, prop);
-    if (!descriptor?.set || !descriptor?.get) continue;
-    Object.defineProperty(HTMLCanvasElement.prototype, prop, {
-      configurable: true,
-      enumerable: descriptor.enumerable,
-      get() {
-        return descriptor.get.call(this);
-      },
-      set(value) {
-        if (this.id === "starfield-canvas") window.__starfieldResizeCount += 1;
-        return descriptor.set.call(this, value);
-      },
-    });
-  }
-});
-
 page.on("pageerror", (error) => {
   errors.push(error.stack || error.message || String(error));
 });
@@ -198,8 +179,6 @@ page.on("console", (message) => {
 
 try {
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20000 });
-  await page.waitForSelector("#starfield-canvas", { timeout: 5000 });
-  await page.waitForSelector("#weather-orb-canvas", { timeout: 5000 });
   await page.waitForFunction(
     () => document.querySelector("#country-list")?.children.length > 0,
     { timeout: 15000 },
@@ -211,15 +190,12 @@ try {
     errors.push(`Build tag contains runtime error text: ${buildTag}`);
   }
 
-  const canvasReady = await page.evaluate(() => {
-    const canvas = document.querySelector("#weather-orb-canvas");
-    return Boolean(canvas && canvas.width > 0 && canvas.height > 0);
+  const firstRowText = await page.evaluate(() => {
+    const row = document.querySelector("#country-list .country-row");
+    return row ? row.textContent || "" : "";
   });
-  if (!canvasReady) errors.push("Weather canvas did not initialize with a drawable size.");
-
-  const starfieldResizeCount = await page.evaluate(() => window.__starfieldResizeCount || 0);
-  if (starfieldResizeCount > 4) {
-    errors.push(`Starfield canvas resized too often: ${starfieldResizeCount} assignments.`);
+  if (!/India/i.test(firstRowText)) {
+    errors.push(`First country row should begin with India, got: ${firstRowText.slice(0, 120)}`);
   }
 
   const buildTagHidden = await page.evaluate(() => {

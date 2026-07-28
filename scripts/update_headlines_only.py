@@ -170,8 +170,6 @@ def fetch_top_headline(name: str, iso2: str, language: str) -> tuple[str | None,
         except Exception:
             continue
 
-    if language != "en":
-        return fetch_top_headline(name, iso2, "en")
     return None, language
 
 
@@ -186,13 +184,14 @@ def main() -> int:
             continue
         name = row.get("name")
         iso2 = row.get("iso2")
-        language = row.get("language") or "en"
+        native_language = row.get("nativeLanguage") or row.get("language") or "en"
         if not name or not iso2:
             continue
 
-        headline, headline_language = fetch_top_headline(name, iso2, language)
+        headline, headline_language = fetch_top_headline(name, iso2, native_language)
         row["headline"] = headline
         row["language"] = headline_language
+        row["nativeLanguage"] = native_language
         if headline:
             updated += 1
 

@@ -61,103 +61,11 @@ summary:focus-visible,
 main {
   max-width: 1120px;
   margin: 0 auto;
-  padding: 10px 16px 40px;
-}
-
-.hero {
-  display: grid;
-  gap: 10px;
-  margin-top: 10px;
-  padding: 16px 18px 6px;
-}
-
-.hero h1 {
-  margin: 0;
-  font-size: clamp(2.1rem, 5vw, 4rem);
-  line-height: 0.96;
-  letter-spacing: -0.04em;
-}
-
-.eyebrow {
-  margin: 0 0 6px;
-  color: rgba(149, 255, 184, 0.9);
-  font: 12px/1.1 "IBM Plex Mono", monospace;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-.lede {
-  max-width: 72ch;
-  margin: 0;
-  color: rgba(212, 229, 243, 0.88);
-  font-size: 1rem;
-  line-height: 1.55;
-}
-
-.world-controls {
-  display: grid;
-  gap: 18px;
-  padding: 18px 18px 16px;
-  margin-top: 12px;
-  border: 1px solid rgba(140, 168, 186, 0.16);
-  border-radius: 16px;
-  background: rgba(6, 10, 18, 0.72);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.24);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-.control-panel {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  gap: 10px 14px;
-  align-items: end;
-}
-
-.control-panel label,
-.country-summary {
-  font-family: "IBM Plex Mono", monospace;
-}
-
-.control-panel label {
-  color: rgba(212, 229, 243, 0.9);
-  font-size: 0.78rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.control-field {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-}
-
-.control-panel input,
-.control-panel select {
-  min-width: 0;
-  width: 100%;
-  padding: 0.8rem 0.9rem;
-  border: 1px solid rgba(140, 168, 186, 0.24);
-  border-radius: 12px;
-  background: rgba(8, 14, 22, 0.88);
-  color: #edf6ff;
-}
-
-.control-panel input::placeholder {
-  color: rgba(149, 173, 188, 0.8);
-}
-
-.country-summary {
-  grid-column: 1 / -1;
-  margin: 2px 0 0;
-  color: rgba(149, 255, 184, 0.86);
-  font-size: 0.8rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  padding: 0 16px 40px;
 }
 
 .country-list-section {
-  margin-top: 18px;
+  margin-top: 0;
 }
 
 .country-list {
@@ -358,19 +266,7 @@ main {
 
 @media (max-width: 720px) {
   main {
-    padding: 16px 12px 32px;
-  }
-
-  .world-controls {
-    padding: 16px 14px;
-  }
-
-  .control-panel {
-    grid-template-columns: 1fr;
-  }
-
-  .control-panel label {
-    margin-top: 6px;
+    padding: 0 12px 32px;
   }
 
   .country-row {

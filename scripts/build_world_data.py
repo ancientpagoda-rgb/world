@@ -160,7 +160,8 @@ BAD_TITLE_PATTERNS = [
 
 
 def fetch_json(url: str):
-    with urllib.request.urlopen(url, timeout=20) as response:
+    request = urllib.request.Request(url, headers=HEADERS)
+    with urllib.request.urlopen(request, timeout=20) as response:
         return json.load(response)
 
 
@@ -283,8 +284,6 @@ def fetch_top_headline(name: str, iso2: str, language: str) -> tuple[str | None,
         except Exception:
             continue
 
-    if language != "en":
-        return fetch_top_headline(name, iso2, "en")
     return None, language
 
 
@@ -387,9 +386,9 @@ def main():
 
     output = []
     for index, country in enumerate(countries, start=1):
-        language = choose_language(country["iso2"], country["languages"])
-        headline, headline_language = fetch_top_headline(country["name"], country["iso2"], language)
-        description = fetch_wikipedia_summary_in_lang(country["name"], language)
+        native_language = choose_language(country["iso2"], country["languages"])
+        headline, headline_language = fetch_top_headline(country["name"], country["iso2"], native_language)
+        description = fetch_wikipedia_summary_in_lang(country["name"], native_language)
 
         output.append(
             {
@@ -399,6 +398,7 @@ def main():
                 "name": country["name"],
                 "population": country["population"],
                 "year": country["year"],
+                "nativeLanguage": native_language,
                 "language": headline_language,
                 "headline": headline,
                 "description": description,
