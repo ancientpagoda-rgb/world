@@ -202,7 +202,8 @@ main {
 }
 
 .syllable,
-.translation {
+.translation,
+.word {
   display: inline-block;
   padding: 0.03em 0.34em;
   margin: 0 0.04em;
@@ -214,6 +215,10 @@ main {
 }
 
 .syllable {
+  letter-spacing: 0.01em;
+}
+
+.word {
   letter-spacing: 0.01em;
 }
 

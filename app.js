@@ -2349,11 +2349,9 @@ function renderNewsItem(item) {
   const originalText = item.title || item.headline || item.text || "";
   const daText = item.da || "Translating…";
   const englishText = item.english || "Translating…";
-  const language = item.language || "";
-  const originalMode = language === "en" || isProbablyEnglishText(originalText) ? "word" : "syllable";
 
-  // Color-code segments by position so each original segment maps visually to its transliteration.
-  setColorCodedSegments(original, originalText, "syllable", originalMode);
+  // Color-code the original text by word so the spans track word boundaries.
+  setColorCodedSegments(original, originalText, "word", "word");
   setColorCodedSegments(da, daText, "translation", "syllable");
   setColorCodedSegments(english, englishText, "translation", "word");
 
