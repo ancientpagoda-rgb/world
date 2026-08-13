@@ -1,0 +1,71 @@
+.starfield-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  display: block;
+  pointer-events: none;
+}
+
+.world-visual-stage {
+  width: min(100%, 860px);
+  margin: 0 auto 24px;
+}
+
+.weather-orb-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  cursor: grab;
+  touch-action: none;
+}
+
+.weather-orb-canvas:active {
+  cursor: grabbing;
+}
+
+.rasters-toggle {
+  position: fixed;
+  top: 10px;
+  left: 12px;
+  z-index: 6;
+  padding: 6px 10px;
+  border: 1px solid rgba(200, 220, 245, 0.18);
+  border-radius: 10px;
+  background: rgba(10, 18, 28, 0.62);
+  color: rgba(225, 238, 255, 0.9);
+  font: 12px/1.1 "IBM Plex Mono", monospace;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.rasters-toggle[aria-pressed="true"] {
+  border-color: rgba(149, 255, 184, 0.38);
+  color: #95ffb8;
+}
+
+.debug-mode .rasters-toggle {
+  left: 220px;
+}
+
+@media (max-width: 720px) {
+  .world-visual-stage {
+    width: 100%;
+    margin-bottom: 14px;
+  }
+
+  .rasters-toggle {
+    top: 8px;
+    left: 8px;
+  }
+
+  .debug-mode .rasters-toggle {
+    top: 72px;
+    left: 8px;
+  }
+}

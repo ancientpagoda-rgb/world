@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>World — country briefing</title>
+    <title>World — live globe & country briefing</title>
     <meta
       name="description"
-      content="World is a browser-based country briefing surface with searchable headlines, translated summaries, and navigation controls."
+      content="World is a browser-based live globe with weather, celestial context, searchable country briefings, and translated summaries."
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -15,10 +15,30 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./globe-shell.css" />
   </head>
   <body>
+    <canvas id="starfield-canvas" class="starfield-canvas" aria-hidden="true"></canvas>
     <div id="build-tag" class="build-tag"></div>
+    <button
+      id="rasters-toggle"
+      class="rasters-toggle"
+      type="button"
+      aria-label="Toggle raster weather overlays"
+      aria-pressed="false"
+    >Rasters: Off</button>
+
     <main>
+      <section class="world-visual-stage" aria-label="Interactive live Earth globe">
+        <canvas
+          id="weather-orb-canvas"
+          class="weather-orb-canvas"
+          width="960"
+          height="960"
+          aria-label="Interactive Earth with live weather and celestial context"
+        ></canvas>
+      </section>
+
       <section class="country-list-section" aria-labelledby="country-list-heading">
         <h2 id="country-list-heading" class="sr-only">Country briefing list</h2>
         <div id="country-list" class="country-list"></div>
@@ -32,7 +52,6 @@
           document.body.classList.add("debug-mode");
         }
 
-        // app.js changes more frequently than the static data; always bust it.
         const appV = String(Date.now());
         const s = document.createElement("script");
         s.src = `./app.js?v=${encodeURIComponent(appV)}`;
@@ -44,8 +63,29 @@
         document.body.appendChild(s);
 
         const tag = document.getElementById("build-tag");
-        if (tag) tag.textContent = `World v1.0.7\napp ${appV}\nagent: connected`;
+        if (tag) tag.textContent = `World v1.0.8\napp ${appV}\nagent: connected`;
 
+        const toggle = document.getElementById("rasters-toggle");
+        const rastersOn = () => searchParams.get("rasters") === "1";
+        const setToggleState = () => {
+          if (!toggle) return;
+          const enabled = rastersOn();
+          toggle.textContent = `Rasters: ${enabled ? "On" : "Off"}`;
+          toggle.setAttribute("aria-pressed", enabled ? "true" : "false");
+        };
+
+        if (toggle) {
+          setToggleState();
+          toggle.addEventListener("click", () => {
+            if (rastersOn()) searchParams.delete("rasters");
+            else searchParams.set("rasters", "1");
+
+            const nextUrl = new URL(location.href);
+            nextUrl.search = searchParams.toString();
+            history.replaceState(null, "", nextUrl);
+            setToggleState();
+          });
+        }
       })();
     </script>
   </body>
