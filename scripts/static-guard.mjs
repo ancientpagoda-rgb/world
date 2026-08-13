@@ -9,6 +9,9 @@ const requireInApp = [
   "async function loadCountries",
   "const DATA_URL",
   "const WORLD_BANK_POPULATION_URL",
+  "function initializeWeatherOrb",
+  "function drawWeatherOrbFrame",
+  "function renderStarfield",
 ];
 
 for (const token of requireInApp) {
@@ -22,7 +25,10 @@ if (appLines < 1000) {
 
 const requireInIndex = [
   "country-list",
+  "starfield-canvas",
+  "weather-orb-canvas",
   "./app.js",
+  "window.initializeWeatherOrb()",
 ];
 
 for (const token of requireInIndex) {
@@ -35,4 +41,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`Static guard passed: app.js has ${appLines} lines and required runtime hooks.`);
+console.log(`Static guard passed: app.js has ${appLines} lines and country + globe runtime hooks are wired.`);
