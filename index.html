@@ -60,10 +60,25 @@
           if (tag) tag.textContent += "\nERROR: Failed to load app.js";
           console.error("Failed to load app.js");
         };
+        s.onload = () => {
+          try {
+            if (window.__worldGlobeBooted) return;
+            if (typeof window.initializeWeatherOrb !== "function") {
+              throw new Error("Globe renderer bootstrap is unavailable");
+            }
+            window.__worldGlobeBooted = true;
+            window.initializeWeatherOrb();
+          } catch (error) {
+            const message = error?.stack || error?.message || String(error);
+            const tag = document.getElementById("build-tag");
+            if (tag) tag.textContent += `\nERROR: ${message}`;
+            console.error(error);
+          }
+        };
         document.body.appendChild(s);
 
         const tag = document.getElementById("build-tag");
-        if (tag) tag.textContent = `World v1.0.8\napp ${appV}\nagent: connected`;
+        if (tag) tag.textContent = `World v1.0.9\napp ${appV}\nagent: connected`;
 
         const toggle = document.getElementById("rasters-toggle");
         const rastersOn = () => searchParams.get("rasters") === "1";
