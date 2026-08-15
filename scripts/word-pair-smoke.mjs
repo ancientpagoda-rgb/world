@@ -1,0 +1,102 @@
+import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
+import { createServer } from "node:http";
+import { extname, join, normalize, resolve, sep } from "node:path";
+import { chromium } from "playwright";
+
+const root = resolve(".");
+const types = {
+  ".css": "text/css; charset=utf-8",
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+};
+
+const server = createServer(async (req, res) => {
+  try {
+    const requestUrl = new URL(req.url || "/", "http://127.0.0.1");
+    const pathname = decodeURIComponent(requestUrl.pathname === "/" ? "/index.html" : requestUrl.pathname);
+    const filePath = normalize(join(root, pathname));
+    if (filePath !== root && !filePath.startsWith(root + sep)) throw new Error("forbidden");
+    const info = await stat(filePath);
+    if (!info.isFile()) throw new Error("not file");
+    res.writeHead(200, { "Content-Type": types[extname(filePath)] || "application/octet-stream" });
+    createReadStream(filePath).pipe(res);
+  } catch {
+    res.writeHead(404);
+    res.end("Not found");
+  }
+});
+
+await new Promise((resolveListen, rejectListen) => {
+  server.once("error", rejectListen);
+  server.listen(0, "127.0.0.1", resolveListen);
+});
+const address = server.address();
+if (!address || typeof address === "string") throw new Error("Could not start word-pair smoke server");
+const url = `http://127.0.0.1:${address.port}/`;
+
+let browser;
+try {
+  browser = await chromium.launch({ args: ["--no-sandbox"] });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20000 });
+  await page.waitForFunction(
+    () => typeof window.__worldWordPairDiagnostics === "function"
+      && document.querySelector("#country-list .country-row .news-original")
+      && document.querySelector(".news-original")?.dataset.wordPairAligned === "true"
+      && document.querySelector(".news-da")?.dataset.wordPairAligned === "true",
+    { timeout: 20000 },
+  );
+
+  const result = await page.evaluate(() => {
+    const row = document.querySelector("#country-list .country-row");
+    const original = row?.querySelector(".news-original");
+    const ipa = row?.querySelector(".news-da");
+    const english = row?.querySelector(".news-en");
+    const sourceText = original?.textContent || "";
+    const sourceTokens = window.tokenizeHeadlineWords(sourceText).filter((part) => part.wordLike);
+    const originalWords = Array.from(original?.querySelectorAll(".paired-original") || []);
+    const ipaWords = Array.from(ipa?.querySelectorAll(".paired-ipa") || []);
+    return {
+      diagnostics: window.__worldWordPairDiagnostics(),
+      sourceText,
+      sourceTokenCount: sourceTokens.length,
+      originalCount: originalWords.length,
+      ipaCount: ipaWords.length,
+      originalIndexes: originalWords.map((el) => el.dataset.wordIndex),
+      ipaIndexes: ipaWords.map((el) => el.dataset.wordIndex),
+      originalColors: originalWords.map((el) => el.style.getPropertyValue("--seg-color")),
+      ipaColors: ipaWords.map((el) => el.style.getPropertyValue("--seg-color")),
+      originalTexts: originalWords.map((el) => el.textContent),
+      ipaTexts: ipaWords.map((el) => el.textContent),
+      englishChildCount: english?.children.length ?? -1,
+      mixedProbeTokens: window.tokenizeHeadlineWords("क्या रेड होगा टीम india tour of bangladesh 3 T20 मैच").filter((part) => part.wordLike).map((part) => part.text),
+    };
+  });
+
+  const failures = [];
+  if (!result.diagnostics?.patched || !result.diagnostics.firstPairMatches) failures.push(`diagnostics wrong: ${JSON.stringify(result.diagnostics)}`);
+  if (!result.sourceTokenCount || result.originalCount !== result.sourceTokenCount) failures.push(`Original spans ${result.originalCount} != source tokens ${result.sourceTokenCount}`);
+  if (result.ipaCount !== result.originalCount) failures.push(`IPA spans ${result.ipaCount} != Original spans ${result.originalCount}`);
+  if (result.originalIndexes.join("|") !== result.ipaIndexes.join("|")) failures.push("Original and IPA word indexes drifted");
+  if (result.originalColors.join("|") !== result.ipaColors.join("|")) failures.push("Original and IPA word colors drifted");
+  if (new Set(result.originalColors).size !== result.originalColors.length) failures.push("A headline word reused an earlier color");
+  if (result.originalColors.some((color) => !color.trim())) failures.push("At least one Original word was left uncolored");
+  if (result.ipaColors.some((color) => !color.trim())) failures.push("At least one IPA word was left uncolored");
+  if (result.englishChildCount !== 0) failures.push(`English translation contains colored/wrapped children: ${result.englishChildCount}`);
+  if (result.mixedProbeTokens.join("|") !== "क्या|रेड|होगा|टीम|india|tour|of|bangladesh|3|T20|मैच") failures.push(`Mixed Hindi/Latin tokenization failed: ${result.mixedProbeTokens.join("|")}`);
+
+  if (failures.length) {
+    console.error("Word-pair browser smoke failed:");
+    for (const failure of failures) console.error(`- ${failure}`);
+    process.exitCode = 1;
+  } else {
+    console.log(`Word-pair browser smoke passed: ${result.originalCount} exact Original ↔ IPA word pairs; every word colored uniquely; English plain.`);
+  }
+} finally {
+  if (browser) await browser.close();
+  await new Promise((resolveClose) => server.close(resolveClose));
+}

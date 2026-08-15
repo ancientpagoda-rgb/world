@@ -7,6 +7,7 @@ const translationFinalizer = await readFile("translation-runtime-finalize.js", "
 const syllableColorFix = await readFile("syllable-color-fix.js", "utf8");
 const ipaPhonetics = await readFile("ipa-phonetics.js", "utf8");
 const languageAwareIpa = await readFile("language-aware-ipa.js", "utf8");
+const wordPairAlignment = await readFile("word-pair-alignment.js", "utf8");
 const index = await readFile("index.html", "utf8");
 const styles = await readFile("styles.css", "utf8");
 const failures = [];
@@ -22,12 +23,13 @@ for (const token of ["finalizeEnglishDa", "toDaCore(input)", "toDaDisplay = asyn
 for (const token of ["PHONETIC_VOWELS", "splitPhoneticSyllables", "setColorCodedSegments = function patchedSetColorCodedSegments", "dataset.syllableIndex", "__worldSyllableDiagnostics"]) if (!syllableColorFix.includes(token)) failures.push(`syllable-color-fix.js is missing ${token}`);
 for (const token of ["englishApproxIpa", "async function toIpaDisplay", "hydrateNewsItem = async function ipaHydrateNewsItem", "IPA phonetics", "__worldIpaDiagnostics", "language-aware-ipa.js"]) if (!ipaPhonetics.includes(token)) failures.push(`ipa-phonetics.js is missing ${token}`);
 for (const token of ["languageAwareIpaDisplay", "cyrillicIpa", "greekIpa", "devanagariIpa", "arabicIpa", "hangulIpa", "chineseIpa", "setCoordinatedWordColors", "coordinated-word", "englishEl.textContent", "__worldLanguageAwareIpaDiagnostics"]) if (!languageAwareIpa.includes(token)) failures.push(`language-aware-ipa.js is missing ${token}`);
+for (const token of ["WORD_TOKEN_RE", "buildWordPairs", "alignHeadlineWordPairs", "paired-original", "paired-ipa", "wordColor(index)", "__worldWordPairDiagnostics"]) if (!wordPairAlignment.includes(token)) failures.push(`word-pair-alignment.js is missing ${token}`);
 
 for (const token of [
   "country-list", "starfield-canvas", "weather-orb-canvas", "ipa-sound-legend", "IPA sound legend",
   "Vowels &amp; diphthongs", "Consonants", "Extra marks", ">θ<", ">ð<", ">aɪ<", ">əʊ<",
-  "matching colors identify corresponding words", "English translation stays plain and uncolored", "World v1.0.15",
-  "./app.js", "./translation-runtime-fix.js", "./translation-runtime-finalize.js", "./syllable-color-fix.js", "./ipa-phonetics.js", "./globe-runtime-fix.js", "window.initializeWeatherOrb()",
+  "Every source word gets its own color", "English translation stays plain and uncolored", "World v1.0.16",
+  "./app.js", "./translation-runtime-fix.js", "./translation-runtime-finalize.js", "./syllable-color-fix.js", "./ipa-phonetics.js", "./word-pair-alignment.js", "./globe-runtime-fix.js", "window.initializeWeatherOrb()",
 ]) if (!index.includes(token)) failures.push(`index.html is missing ${token}`);
 for (const token of [".da-legend", ".da-sound-grid", ".da-sound", ".da-legend-summary-note"]) if (!styles.includes(token)) failures.push(`styles.css is missing ${token}`);
 
@@ -36,4 +38,4 @@ if (failures.length) {
   for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
-console.log(`Static guard passed: app.js has ${appLines} lines and language-aware IPA + coordinated Original/IPA word colors + plain English + globe runtime hooks are wired.`);
+console.log(`Static guard passed: app.js has ${appLines} lines and exact Original↔IPA word pairs + language-aware IPA + plain English + globe runtime hooks are wired.`);

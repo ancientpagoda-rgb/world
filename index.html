@@ -47,7 +47,7 @@
         <div class="da-legend-body">
           <p class="da-legend-intro">
             The phonetics column uses broad, language-aware International Phonetic Alphabet (IPA) approximations.
-            Colors coordinate word positions between Original and IPA: matching colors identify corresponding words. The English translation stays plain and uncolored.
+            Every source word gets its own color, and the exact same color is used for that word's IPA transcription. The English translation stays plain and uncolored.
           </p>
 
           <section class="da-legend-group" aria-labelledby="ipa-vowels-heading">
@@ -149,11 +149,34 @@
           patch.onerror = () => { reportLoadError("Failed to load globe-runtime-fix.js; using base renderer"); bootGlobe(); };
           document.body.appendChild(patch);
         };
+        const loadWordPairPatch = () => {
+          const patch = document.createElement("script");
+          patch.src = `./word-pair-alignment.js?v=${encodeURIComponent(appV)}`;
+          patch.onload = loadGlobePatch;
+          patch.onerror = () => { reportLoadError("Failed to load word-pair-alignment.js; using independent word colors"); loadGlobePatch(); };
+          document.body.appendChild(patch);
+        };
+        const waitForLanguageAwareIpa = () => {
+          const deadline = Date.now() + 5000;
+          const poll = () => {
+            if (typeof window.__worldLanguageAwareIpaDiagnostics === "function") {
+              loadWordPairPatch();
+              return;
+            }
+            if (Date.now() >= deadline) {
+              console.warn("Language-aware IPA did not become ready before timeout; pairing broad IPA instead.");
+              loadWordPairPatch();
+              return;
+            }
+            setTimeout(poll, 20);
+          };
+          poll();
+        };
         const loadIpaPatch = () => {
           const patch = document.createElement("script");
           patch.src = `./ipa-phonetics.js?v=${encodeURIComponent(appV)}`;
-          patch.onload = loadGlobePatch;
-          patch.onerror = () => { reportLoadError("Failed to load ipa-phonetics.js; using fallback phonetics"); loadGlobePatch(); };
+          patch.onload = waitForLanguageAwareIpa;
+          patch.onerror = () => { reportLoadError("Failed to load ipa-phonetics.js; using fallback phonetics"); loadWordPairPatch(); };
           document.body.appendChild(patch);
         };
         const loadSyllableColorPatch = () => {
@@ -184,7 +207,7 @@
         app.onload = loadTranslationPatch;
         document.body.appendChild(app);
 
-        if (tag) tag.textContent = `World v1.0.15\napp ${appV}\nagent: connected`;
+        if (tag) tag.textContent = `World v1.0.16\napp ${appV}\nagent: connected`;
 
         const toggle = document.getElementById("rasters-toggle");
         const rastersOn = () => searchParams.get("rasters") === "1";
