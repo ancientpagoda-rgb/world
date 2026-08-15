@@ -174,6 +174,12 @@
 
   const languageAwarePatch = document.createElement("script");
   languageAwarePatch.src = `./language-aware-ipa.js?v=${encodeURIComponent(String(Date.now()))}`;
+  languageAwarePatch.onload = () => {
+    const qualityPatch = document.createElement("script");
+    qualityPatch.src = `./ipa-quality-fix.js?v=${encodeURIComponent(String(Date.now()))}`;
+    qualityPatch.onerror = () => console.warn("IPA quality layer failed to load; using language-aware IPA only.");
+    document.body.appendChild(qualityPatch);
+  };
   languageAwarePatch.onerror = () => console.warn("Language-aware IPA layer failed to load; using broad IPA fallback.");
   document.body.appendChild(languageAwarePatch);
 })();
