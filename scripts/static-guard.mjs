@@ -5,6 +5,7 @@ const globePatch = await readFile("globe-runtime-fix.js", "utf8");
 const translationPatch = await readFile("translation-runtime-fix.js", "utf8");
 const translationFinalizer = await readFile("translation-runtime-finalize.js", "utf8");
 const syllableColorFix = await readFile("syllable-color-fix.js", "utf8");
+const ipaPhonetics = await readFile("ipa-phonetics.js", "utf8");
 const index = await readFile("index.html", "utf8");
 const styles = await readFile("styles.css", "utf8");
 const failures = [];
@@ -44,7 +45,6 @@ const requireInTranslationPatch = [
   "toDaDisplay = upgradedDaDisplay",
   "effectiveSourceLanguage",
   "MAX_TRANSLATIONS_IN_FLIGHT",
-  "DA_FINAL_REPLACEMENTS",
   "__worldTranslationDiagnostics",
 ];
 for (const token of requireInTranslationPatch) {
@@ -62,8 +62,8 @@ for (const token of requireInTranslationFinalizer) {
 }
 
 const requireInSyllableColorFix = [
-  "DA_VOWEL_NUCLEI",
-  "splitDaSyllables",
+  "PHONETIC_VOWELS",
+  "splitPhoneticSyllables",
   "setColorCodedSegments = function patchedSetColorCodedSegments",
   "dataset.syllableIndex",
   "__worldSyllableDiagnostics",
@@ -72,23 +72,35 @@ for (const token of requireInSyllableColorFix) {
   if (!syllableColorFix.includes(token)) failures.push(`syllable-color-fix.js is missing ${token}`);
 }
 
+const requireInIpaPhonetics = [
+  "englishApproxIpa",
+  "async function toIpaDisplay",
+  "hydrateNewsItem = async function ipaHydrateNewsItem",
+  "IPA phonetics",
+  "__worldIpaDiagnostics",
+];
+for (const token of requireInIpaPhonetics) {
+  if (!ipaPhonetics.includes(token)) failures.push(`ipa-phonetics.js is missing ${token}`);
+}
+
 const requireInIndex = [
   "country-list",
   "starfield-canvas",
   "weather-orb-canvas",
-  "da-sound-legend",
-  "DA sound legend",
+  "ipa-sound-legend",
+  "IPA sound legend",
   "Vowels &amp; diphthongs",
   "Consonants",
-  "Extended phonetic marks",
-  ">Ҹ<",
-  ">Þ<",
-  ">Φ<",
-  ">Ꝏ<",
+  "Extra marks",
+  ">θ<",
+  ">ð<",
+  ">aɪ<",
+  ">əʊ<",
   "./app.js",
   "./translation-runtime-fix.js",
   "./translation-runtime-finalize.js",
   "./syllable-color-fix.js",
+  "./ipa-phonetics.js",
   "./globe-runtime-fix.js",
   "window.initializeWeatherOrb()",
 ];
@@ -112,4 +124,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`Static guard passed: app.js has ${appLines} lines and country + translation + DA legend + syllable-color + interactive globe runtime hooks are wired.`);
+console.log(`Static guard passed: app.js has ${appLines} lines and country + translation + IPA legend + syllable-color + interactive globe runtime hooks are wired.`);
