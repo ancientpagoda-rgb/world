@@ -6,6 +6,7 @@ const translationPatch = await readFile("translation-runtime-fix.js", "utf8");
 const translationFinalizer = await readFile("translation-runtime-finalize.js", "utf8");
 const syllableColorFix = await readFile("syllable-color-fix.js", "utf8");
 const index = await readFile("index.html", "utf8");
+const styles = await readFile("styles.css", "utf8");
 const failures = [];
 
 const requireInApp = [
@@ -75,6 +76,15 @@ const requireInIndex = [
   "country-list",
   "starfield-canvas",
   "weather-orb-canvas",
+  "da-sound-legend",
+  "DA sound legend",
+  "Vowels &amp; diphthongs",
+  "Consonants",
+  "Extended phonetic marks",
+  ">Ҹ<",
+  ">Þ<",
+  ">Φ<",
+  ">Ꝏ<",
   "./app.js",
   "./translation-runtime-fix.js",
   "./translation-runtime-finalize.js",
@@ -86,10 +96,20 @@ for (const token of requireInIndex) {
   if (!index.includes(token)) failures.push(`index.html is missing ${token}`);
 }
 
+const requireInStyles = [
+  ".da-legend",
+  ".da-sound-grid",
+  ".da-sound",
+  ".da-legend-summary-note",
+];
+for (const token of requireInStyles) {
+  if (!styles.includes(token)) failures.push(`styles.css is missing ${token}`);
+}
+
 if (failures.length) {
   console.error("Static guard failed:");
   for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
 
-console.log(`Static guard passed: app.js has ${appLines} lines and country + translation + syllable-color + interactive globe runtime hooks are wired.`);
+console.log(`Static guard passed: app.js has ${appLines} lines and country + translation + DA legend + syllable-color + interactive globe runtime hooks are wired.`);
