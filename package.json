@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check:syntax": "node --check app.js && node --check globe-runtime-fix.js && node --check translation-runtime-fix.js && node --check translation-runtime-finalize.js && node --check syllable-color-fix.js && node --check ipa-phonetics.js && node --check language-aware-ipa.js && node --check word-pair-alignment.js && node --check scripts/word-pair-smoke.mjs",
+    "check:syntax": "node --check app.js && node --check globe-runtime-fix.js && node --check translation-runtime-fix.js && node --check translation-runtime-finalize.js && node --check syllable-color-fix.js && node --check ipa-phonetics.js && node --check language-aware-ipa.js && node --check ipa-quality-fix.js && node --check word-pair-alignment.js && node --check scripts/word-pair-smoke.mjs",
     "check:static": "node scripts/static-guard.mjs && node scripts/word-pair-static.mjs",
     "test:setup": "node scripts/test-setup.mjs",
     "test:smoke": "node scripts/browser-smoke.mjs && node scripts/word-pair-smoke.mjs"
