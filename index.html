@@ -86,13 +86,24 @@
           document.body.appendChild(patch);
         };
 
+        const loadSyllableColorPatch = () => {
+          const patch = document.createElement("script");
+          patch.src = `./syllable-color-fix.js?v=${encodeURIComponent(appV)}`;
+          patch.onload = loadGlobePatch;
+          patch.onerror = () => {
+            reportLoadError("Failed to load syllable-color-fix.js; using base color segmentation");
+            loadGlobePatch();
+          };
+          document.body.appendChild(patch);
+        };
+
         const loadTranslationFinalizer = () => {
           const patch = document.createElement("script");
           patch.src = `./translation-runtime-finalize.js?v=${encodeURIComponent(appV)}`;
-          patch.onload = loadGlobePatch;
+          patch.onload = loadSyllableColorPatch;
           patch.onerror = () => {
             reportLoadError("Failed to load translation-runtime-finalize.js; using upgraded base phonetics");
-            loadGlobePatch();
+            loadSyllableColorPatch();
           };
           document.body.appendChild(patch);
         };
@@ -103,7 +114,7 @@
           patch.onload = loadTranslationFinalizer;
           patch.onerror = () => {
             reportLoadError("Failed to load translation-runtime-fix.js; using base translations");
-            loadGlobePatch();
+            loadSyllableColorPatch();
           };
           document.body.appendChild(patch);
         };
@@ -114,7 +125,7 @@
         app.onload = loadTranslationPatch;
         document.body.appendChild(app);
 
-        if (tag) tag.textContent = `World v1.0.11\napp ${appV}\nagent: connected`;
+        if (tag) tag.textContent = `World v1.0.12\napp ${appV}\nagent: connected`;
 
         const toggle = document.getElementById("rasters-toggle");
         const rastersOn = () => searchParams.get("rasters") === "1";
