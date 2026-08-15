@@ -27,11 +27,33 @@
     ["would", "wʊd"], ["could", "kʊd"], ["should", "ʃʊd"], ["not", "nɒt"], ["new", "njuː"],
   ]);
 
+  const PROTECTED_IPA_SEQUENCES = [
+    "eər", "ɜːr", "aːr", "ɔːr", "aɪ", "aʊ", "ɔɪ", "əʊ", "eɪ", "iː", "uː", "ɔː",
+  ];
+
   function daFallbackToIpa(input = "") {
     let output = "";
     for (const char of Array.from(String(input || ""))) {
       output += DA_TO_IPA_FALLBACK.get(char) ?? char;
     }
+    return output;
+  }
+
+  function protectIpaSequences(input = "") {
+    let output = String(input || "");
+    const held = [];
+    for (const sequence of PROTECTED_IPA_SEQUENCES) {
+      output = output.split(sequence).join(`\uE${String(held.length).padStart(3, "0")}`);
+      held.push(sequence);
+    }
+    return { output, held };
+  }
+
+  function restoreIpaSequences(input = "", held = []) {
+    let output = String(input || "");
+    held.forEach((sequence, index) => {
+      output = output.split(`\uE${String(index).padStart(3, "0")}`).join(sequence);
+    });
     return output;
   }
 
@@ -73,15 +95,15 @@
         .replace(/igh/g, "aɪ")
         .replace(/air/g, "eər");
 
-      // Convert unresolved English vowel letters to broad IPA values. Existing
-      // diphthongs and long vowels from normalizeEnglishForDa remain intact.
-      phonemes = phonemes
+      const protectedIpa = protectIpaSequences(phonemes);
+      phonemes = protectedIpa.output
         .replace(/a/g, "æ")
         .replace(/e/g, "ɛ")
         .replace(/i/g, "ɪ")
         .replace(/o/g, "ɒ")
         .replace(/u/g, "ʌ")
         .replace(/y/g, "j");
+      phonemes = restoreIpaSequences(phonemes, protectedIpa.held);
 
       return `${prefix}${phonemes}${suffix}`;
     }).join("");
