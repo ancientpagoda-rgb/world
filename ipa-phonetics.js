@@ -152,7 +152,7 @@
   function syncHeaders() {
     for (const header of document.querySelectorAll(".news-list-header")) {
       const label = header.children?.[1];
-      if (label) label.textContent = "IPA phonetics";
+      if (label && label.textContent !== "IPA phonetics") label.textContent = "IPA phonetics";
     }
   }
 
