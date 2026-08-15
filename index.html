@@ -53,6 +53,13 @@
         }
 
         const appV = String(Date.now());
+        const tag = document.getElementById("build-tag");
+
+        const reportLoadError = (message) => {
+          if (tag) tag.textContent += `\nERROR: ${message}`;
+          console.error(message);
+        };
+
         const bootGlobe = () => {
           try {
             if (window.__worldGlobeBooted) return;
@@ -63,35 +70,40 @@
             window.initializeWeatherOrb();
           } catch (error) {
             const message = error?.stack || error?.message || String(error);
-            const tag = document.getElementById("build-tag");
             if (tag) tag.textContent += `\nERROR: ${message}`;
             console.error(error);
           }
         };
 
-        const s = document.createElement("script");
-        s.src = `./app.js?v=${encodeURIComponent(appV)}`;
-        s.onerror = () => {
-          const tag = document.getElementById("build-tag");
-          if (tag) tag.textContent += "\nERROR: Failed to load app.js";
-          console.error("Failed to load app.js");
-        };
-        s.onload = () => {
+        const loadGlobePatch = () => {
           const patch = document.createElement("script");
           patch.src = `./globe-runtime-fix.js?v=${encodeURIComponent(appV)}`;
           patch.onload = bootGlobe;
           patch.onerror = () => {
-            const tag = document.getElementById("build-tag");
-            if (tag) tag.textContent += "\nERROR: Failed to load globe-runtime-fix.js; using base renderer";
-            console.error("Failed to load globe-runtime-fix.js");
+            reportLoadError("Failed to load globe-runtime-fix.js; using base renderer");
             bootGlobe();
           };
           document.body.appendChild(patch);
         };
-        document.body.appendChild(s);
 
-        const tag = document.getElementById("build-tag");
-        if (tag) tag.textContent = `World v1.0.10\napp ${appV}\nagent: connected`;
+        const loadTranslationPatch = () => {
+          const patch = document.createElement("script");
+          patch.src = `./translation-runtime-fix.js?v=${encodeURIComponent(appV)}`;
+          patch.onload = loadGlobePatch;
+          patch.onerror = () => {
+            reportLoadError("Failed to load translation-runtime-fix.js; using base translations");
+            loadGlobePatch();
+          };
+          document.body.appendChild(patch);
+        };
+
+        const app = document.createElement("script");
+        app.src = `./app.js?v=${encodeURIComponent(appV)}`;
+        app.onerror = () => reportLoadError("Failed to load app.js");
+        app.onload = loadTranslationPatch;
+        document.body.appendChild(app);
+
+        if (tag) tag.textContent = `World v1.0.11\napp ${appV}\nagent: connected`;
 
         const toggle = document.getElementById("rasters-toggle");
         const rastersOn = () => searchParams.get("rasters") === "1";
