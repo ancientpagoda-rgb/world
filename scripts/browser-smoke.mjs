@@ -153,8 +153,11 @@ page.on("pageerror", (error) => errors.push(error.stack || error.message || Stri
 page.on("console", (message) => {
   if (message.type() !== "error") return;
   const location = message.location();
-  if (location.url.endsWith("/favicon.ico")) return;
-  const suffix = location.url ? ` (${location.url})` : "";
+  const sourceUrl = location.url || "";
+  if (sourceUrl.endsWith("/favicon.ico")) return;
+  // External font CDNs are presentation-only and occasionally return transient 404s in CI.
+  if (/^https:\/\/fonts\.(?:gstatic|googleapis)\.com\//.test(sourceUrl)) return;
+  const suffix = sourceUrl ? ` (${sourceUrl})` : "";
   errors.push(`${message.text()}${suffix}`);
 });
 
