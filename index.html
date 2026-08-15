@@ -53,14 +53,7 @@
         }
 
         const appV = String(Date.now());
-        const s = document.createElement("script");
-        s.src = `./app.js?v=${encodeURIComponent(appV)}`;
-        s.onerror = () => {
-          const tag = document.getElementById("build-tag");
-          if (tag) tag.textContent += "\nERROR: Failed to load app.js";
-          console.error("Failed to load app.js");
-        };
-        s.onload = () => {
+        const bootGlobe = () => {
           try {
             if (window.__worldGlobeBooted) return;
             if (typeof window.initializeWeatherOrb !== "function") {
@@ -75,10 +68,30 @@
             console.error(error);
           }
         };
+
+        const s = document.createElement("script");
+        s.src = `./app.js?v=${encodeURIComponent(appV)}`;
+        s.onerror = () => {
+          const tag = document.getElementById("build-tag");
+          if (tag) tag.textContent += "\nERROR: Failed to load app.js";
+          console.error("Failed to load app.js");
+        };
+        s.onload = () => {
+          const patch = document.createElement("script");
+          patch.src = `./globe-runtime-fix.js?v=${encodeURIComponent(appV)}`;
+          patch.onload = bootGlobe;
+          patch.onerror = () => {
+            const tag = document.getElementById("build-tag");
+            if (tag) tag.textContent += "\nERROR: Failed to load globe-runtime-fix.js; using base renderer";
+            console.error("Failed to load globe-runtime-fix.js");
+            bootGlobe();
+          };
+          document.body.appendChild(patch);
+        };
         document.body.appendChild(s);
 
         const tag = document.getElementById("build-tag");
-        if (tag) tag.textContent = `World v1.0.9\napp ${appV}\nagent: connected`;
+        if (tag) tag.textContent = `World v1.0.10\napp ${appV}\nagent: connected`;
 
         const toggle = document.getElementById("rasters-toggle");
         const rastersOn = () => searchParams.get("rasters") === "1";
