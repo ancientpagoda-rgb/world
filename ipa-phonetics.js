@@ -3,9 +3,8 @@
 
   const finalizedDaDisplay = toDaDisplay;
 
-  // This is a fallback for scripts whose current transliterator already returns
-  // the DA presentation layer. English is handled directly below so ambiguous
-  // DA symbols do not destroy distinctions such as /æ/ versus /eɪ/.
+  // Fallback for scripts whose current transliterator still returns the DA
+  // presentation layer internally. Users only see the IPA result.
   const DA_TO_IPA_FALLBACK = new Map([
     ["A", "a"], ["Λ", "ə"], ["ƛ", "ʌ"], ["À", "aːr"], ["Æ", "eər"],
     ["B", "b"], ["D", "d"], ["Ð", "ð"], ["E", "e"], ["Ξ", "iː"], ["C", "ɜːr"],
@@ -16,6 +15,16 @@
     ["V", "v"], ["W", "w"], ["Ꝏ", "aʊ"], ["Y", "j"], ["Z", "z"], ["Þ", "θ"],
     ["ā", "aː"], ["ī", "iː"], ["ū", "uː"], ["ē", "eː"], ["ō", "oː"],
     ["ṝ", "ṛː"], ["ḹ", "ḷː"],
+  ]);
+
+  const COMMON_ENGLISH_IPA = new Map([
+    ["the", "ðə"], ["a", "ə"], ["an", "æn"], ["and", "ænd"], ["of", "əv"], ["to", "tə"],
+    ["for", "fɔːr"], ["from", "frʌm"], ["in", "ɪn"], ["on", "ɒn"], ["at", "æt"], ["by", "baɪ"],
+    ["is", "ɪz"], ["are", "ɑːr"], ["was", "wɒz"], ["were", "wɜːr"], ["be", "biː"],
+    ["this", "ðɪs"], ["that", "ðæt"], ["these", "ðiːz"], ["those", "ðəʊz"],
+    ["they", "ðeɪ"], ["their", "ðeər"], ["there", "ðeər"], ["them", "ðɛm"], ["then", "ðɛn"],
+    ["with", "wɪð"], ["as", "æz"], ["has", "hæz"], ["have", "hæv"], ["will", "wɪl"],
+    ["would", "wʊd"], ["could", "kʊd"], ["should", "ʃʊd"], ["not", "nɒt"], ["new", "njuː"],
   ]);
 
   function daFallbackToIpa(input = "") {
@@ -37,10 +46,13 @@
       const lower = core.toLowerCase().replace(/[’']/g, "");
       if (!lower) return part;
 
+      const common = COMMON_ENGLISH_IPA.get(lower);
+      if (common) return `${prefix}${common}${suffix}`;
+
       let phonemes = normalizeEnglishForDa(core);
 
-      // The base normalizer intentionally leaves a few common digraphs for the
-      // DA layer. Convert those directly to IPA here.
+      // The base normalizer leaves several digraphs for the DA layer. Convert
+      // them directly here instead of round-tripping through the custom alphabet.
       phonemes = phonemes
         .replace(/ture\b/g, "tʃər")
         .replace(/sh/g, "ʃ")
@@ -51,16 +63,18 @@
         .replace(/ph/g, "f")
         .replace(/qu/g, "kw")
         .replace(/ck/g, "k")
-        .replace(/c/g, "k");
+        .replace(/c/g, "k")
+        .replace(/th/g, "θ");
 
-      // Common function words use voiced TH; the remaining "th" falls back to /θ/.
-      if (/^(the|this|that|these|those|them|they|their|there|then|than|though|thus)$/.test(lower)) {
-        phonemes = phonemes.replace(/^th/, "ð");
-      }
-      phonemes = phonemes.replace(/th/g, "θ");
+      // A few productive English spelling patterns that are otherwise ambiguous.
+      phonemes = phonemes
+        .replace(/ow(?=[nrl])/g, "aʊ")
+        .replace(/ow\b/g, "əʊ")
+        .replace(/igh/g, "aɪ")
+        .replace(/air/g, "eər");
 
       // Convert unresolved English vowel letters to broad IPA values. Existing
-      // diphthongs/long vowels from normalizeEnglishForDa are already IPA-like.
+      // diphthongs and long vowels from normalizeEnglishForDa remain intact.
       phonemes = phonemes
         .replace(/a/g, "æ")
         .replace(/e/g, "ɛ")
@@ -87,7 +101,7 @@
     }
 
     // The current multilingual transliterators produce a DA phonetic form.
-    // Convert that form back to broad IPA until each script has a direct IPA engine.
+    // Convert that form to broad IPA until each script gets a direct IPA engine.
     const da = await finalizedDaDisplay(sourceText, language);
     return `${daFallbackToIpa(da)}${suffix}`.trim();
   }
