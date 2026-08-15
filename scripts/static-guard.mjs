@@ -4,6 +4,7 @@ const app = await readFile("app.js", "utf8");
 const globePatch = await readFile("globe-runtime-fix.js", "utf8");
 const translationPatch = await readFile("translation-runtime-fix.js", "utf8");
 const translationFinalizer = await readFile("translation-runtime-finalize.js", "utf8");
+const syllableColorFix = await readFile("syllable-color-fix.js", "utf8");
 const index = await readFile("index.html", "utf8");
 const failures = [];
 
@@ -59,6 +60,17 @@ for (const token of requireInTranslationFinalizer) {
   if (!translationFinalizer.includes(token)) failures.push(`translation-runtime-finalize.js is missing ${token}`);
 }
 
+const requireInSyllableColorFix = [
+  "DA_VOWEL_NUCLEI",
+  "splitDaSyllables",
+  "setColorCodedSegments = function patchedSetColorCodedSegments",
+  "dataset.syllableIndex",
+  "__worldSyllableDiagnostics",
+];
+for (const token of requireInSyllableColorFix) {
+  if (!syllableColorFix.includes(token)) failures.push(`syllable-color-fix.js is missing ${token}`);
+}
+
 const requireInIndex = [
   "country-list",
   "starfield-canvas",
@@ -66,6 +78,7 @@ const requireInIndex = [
   "./app.js",
   "./translation-runtime-fix.js",
   "./translation-runtime-finalize.js",
+  "./syllable-color-fix.js",
   "./globe-runtime-fix.js",
   "window.initializeWeatherOrb()",
 ];
@@ -79,4 +92,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`Static guard passed: app.js has ${appLines} lines and country + translation + interactive globe runtime hooks are wired.`);
+console.log(`Static guard passed: app.js has ${appLines} lines and country + translation + syllable-color + interactive globe runtime hooks are wired.`);
