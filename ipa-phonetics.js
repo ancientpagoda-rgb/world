@@ -76,7 +76,6 @@
       if (common) return `${prefix}${common}${suffix}`;
 
       let phonemes = normalizeEnglishForDa(core);
-
       phonemes = phonemes
         .replace(/ture\b/g, "tʃər")
         .replace(/sh/g, "ʃ")
@@ -123,8 +122,6 @@
       return `${englishApproxIpa(sourceText)}${suffix}`.trim();
     }
 
-    // The current multilingual transliterators produce a DA phonetic form.
-    // Convert that form to broad IPA until each script gets a direct IPA engine.
     const da = await finalizedDaDisplay(sourceText, language);
     return `${daFallbackToIpa(da)}${suffix}`.trim();
   }
@@ -174,4 +171,9 @@
     renderedMode: document.querySelector(".news-da")?.dataset.phoneticsMode || null,
     renderedSyllables: document.querySelectorAll(".news-da .syllable").length,
   });
+
+  const languageAwarePatch = document.createElement("script");
+  languageAwarePatch.src = `./language-aware-ipa.js?v=${encodeURIComponent(String(Date.now()))}`;
+  languageAwarePatch.onerror = () => console.warn("Language-aware IPA layer failed to load; using broad IPA fallback.");
+  document.body.appendChild(languageAwarePatch);
 })();
