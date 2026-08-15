@@ -168,7 +168,9 @@ try {
     { timeout: 15000 },
   );
   await page.waitForFunction(
-    () => typeof window.__worldTranslationDiagnostics === "function" && window.__worldTranslationFinalizer === "1.0.0",
+    () => typeof window.__worldTranslationDiagnostics === "function"
+      && window.__worldTranslationFinalizer === "1.0.0"
+      && typeof window.__worldSyllableDiagnostics === "function",
     { timeout: 10000 },
   );
   await page.waitForTimeout(1500);
@@ -199,6 +201,30 @@ try {
     errors.push("Translation diagnostics were unavailable or had the wrong version.");
   }
 
+  const syllableProbe = await page.evaluate(() => {
+    const target = document.createElement("div");
+    window.setColorCodedSegments(target, "KOLOR KΩDID SILΛBΛL", "translation", "syllable");
+    const spans = Array.from(target.querySelectorAll(".syllable"));
+    return {
+      diagnostics: window.__worldSyllableDiagnostics(),
+      texts: spans.map((span) => span.textContent),
+      colors: spans.map((span) => span.style.getPropertyValue("--seg-color")),
+      indexes: spans.map((span) => span.dataset.syllableIndex),
+    };
+  });
+  if (!syllableProbe.diagnostics?.patched || syllableProbe.diagnostics.paletteSize < 4) {
+    errors.push("DA syllable color diagnostics were unavailable or incomplete.");
+  }
+  if (syllableProbe.texts.length < 6) {
+    errors.push(`DA syllable probe did not split enough syllables: ${syllableProbe.texts.join("|")}`);
+  }
+  if (syllableProbe.colors.length >= 2 && syllableProbe.colors[0] === syllableProbe.colors[1]) {
+    errors.push("Adjacent DA syllables received the same color.");
+  }
+  if (syllableProbe.indexes[0] !== "0" || syllableProbe.indexes[1] !== "1") {
+    errors.push(`DA syllable indexes were not sequential: ${syllableProbe.indexes.slice(0, 4).join(",")}`);
+  }
+
   const buildTagHidden = await page.evaluate(() => {
     const tag = document.querySelector("#build-tag");
     return Boolean(tag && getComputedStyle(tag).display === "none");
@@ -223,4 +249,4 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log("Browser smoke test passed: page, translations, DA phonetics, and debug mode loaded without JS errors.");
+console.log("Browser smoke test passed: page, translations, DA phonetics, syllable colors, and debug mode loaded without JS errors.");
