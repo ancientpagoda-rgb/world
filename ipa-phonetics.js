@@ -39,11 +39,15 @@
     return output;
   }
 
+  function marker(index) {
+    return String.fromCharCode(0xE000 + index);
+  }
+
   function protectIpaSequences(input = "") {
     let output = String(input || "");
     const held = [];
     for (const sequence of PROTECTED_IPA_SEQUENCES) {
-      output = output.split(sequence).join(`\uE${String(held.length).padStart(3, "0")}`);
+      output = output.split(sequence).join(marker(held.length));
       held.push(sequence);
     }
     return { output, held };
@@ -52,7 +56,7 @@
   function restoreIpaSequences(input = "", held = []) {
     let output = String(input || "");
     held.forEach((sequence, index) => {
-      output = output.split(`\uE${String(index).padStart(3, "0")}`).join(sequence);
+      output = output.split(marker(index)).join(sequence);
     });
     return output;
   }
@@ -73,8 +77,6 @@
 
       let phonemes = normalizeEnglishForDa(core);
 
-      // The base normalizer leaves several digraphs for the DA layer. Convert
-      // them directly here instead of round-tripping through the custom alphabet.
       phonemes = phonemes
         .replace(/ture\b/g, "tʃər")
         .replace(/sh/g, "ʃ")
@@ -88,7 +90,6 @@
         .replace(/c/g, "k")
         .replace(/th/g, "θ");
 
-      // A few productive English spelling patterns that are otherwise ambiguous.
       phonemes = phonemes
         .replace(/ow(?=[nrl])/g, "aʊ")
         .replace(/ow\b/g, "əʊ")
