@@ -442,3 +442,32 @@ main {
     border-left: 2px solid rgba(255, 255, 255, 0.18);
   }
 }
+
+/* Larger reading size for the paired headline view. */
+.country-news-original,
+.country-news-da {
+  font-size: 1.25rem;
+  line-height: 1.45;
+}
+
+.news-original,
+.news-da {
+  font-size: 1.35rem;
+  line-height: 1.45;
+}
+
+.news-en {
+  font-size: 1.18rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 700px) {
+  .news-original,
+  .news-da {
+    font-size: 1.4rem;
+  }
+
+  .news-en {
+    font-size: 1.2rem;
+  }
+}
