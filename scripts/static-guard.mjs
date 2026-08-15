@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 
 const app = await readFile("app.js", "utf8");
 const globePatch = await readFile("globe-runtime-fix.js", "utf8");
+const translationPatch = await readFile("translation-runtime-fix.js", "utf8");
 const index = await readFile("index.html", "utf8");
 const failures = [];
 
@@ -36,11 +37,25 @@ for (const token of requireInGlobePatch) {
   if (!globePatch.includes(token)) failures.push(`globe-runtime-fix.js is missing ${token}`);
 }
 
+const requireInTranslationPatch = [
+  "toEnglishDisplay = upgradedEnglishDisplay",
+  "toDaDisplay = upgradedDaDisplay",
+  "effectiveSourceLanguage",
+  "MAX_TRANSLATIONS_IN_FLIGHT",
+  "DA_FINAL_REPLACEMENTS",
+  "__worldTranslationDiagnostics",
+];
+
+for (const token of requireInTranslationPatch) {
+  if (!translationPatch.includes(token)) failures.push(`translation-runtime-fix.js is missing ${token}`);
+}
+
 const requireInIndex = [
   "country-list",
   "starfield-canvas",
   "weather-orb-canvas",
   "./app.js",
+  "./translation-runtime-fix.js",
   "./globe-runtime-fix.js",
   "window.initializeWeatherOrb()",
 ];
@@ -55,4 +70,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`Static guard passed: app.js has ${appLines} lines and country + interactive globe runtime hooks are wired.`);
+console.log(`Static guard passed: app.js has ${appLines} lines and country + translation + interactive globe runtime hooks are wired.`);
