@@ -471,3 +471,18 @@ main {
     font-size: 1.2rem;
   }
 }
+
+/* Wider reading area so larger Original/IPA words wrap less often. */
+@media (min-width: 701px) {
+  main {
+    max-width: 1480px;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .news-row,
+  .news-list-header {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.25fr) minmax(0, 0.9fr);
+    gap: 1rem;
+  }
+}
