@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const DA_SYLLABLE_COLORS = [
+  const PHONETIC_SYLLABLE_COLORS = [
     "255 107 107", // coral
     "254 202 87",  // amber
     "72 219 251",  // cyan
@@ -10,14 +10,14 @@
     "178 126 255", // violet
   ];
 
-  // DA vowels and vowel-like nuclei after the phonetic finalizer runs.
-  // Include the universal-kit fallbacks so partially transliterated languages
-  // can still be syllabified instead of collapsing into one color per word.
-  const DA_VOWEL_NUCLEI = new Set([
-    "A", "Λ", "ƛ", "E", "Ξ", "I", "Φ", "Ȯ", "O", "Ω", "Ō", "U", "ʊ", "Ꝏ", "Æ", "C", "À",
-    "a", "e", "i", "o", "u", "y", "ā", "ē", "ī", "ō", "ū", "æ", "œ", "ə", "ɨ", "ɪ", "ɔ", "ɒ",
-    "à", "á", "â", "ä", "ã", "å", "è", "é", "ê", "ë", "ì", "í", "î", "ï", "ò", "ó", "ô", "ö", "õ", "ø",
-    "ù", "ú", "û", "ü", "ý", "ÿ", "ṛ", "ḷ", "ḹ",
+  // Includes the IPA vowel inventory used by the site, plus the older DA glyphs
+  // so the runtime remains resilient while translations are hydrating.
+  const PHONETIC_VOWELS = new Set([
+    "a", "e", "i", "o", "u", "y", "æ", "ɑ", "ɐ", "ɒ", "ɔ", "ʌ", "ə", "ɚ", "ɜ", "ɝ", "ɞ",
+    "ɛ", "ɘ", "ɤ", "ɨ", "ɪ", "ɯ", "ɵ", "œ", "ɶ", "ʉ", "ʊ", "ʏ", "ø", "ü",
+    "ā", "ē", "ī", "ō", "ū", "à", "á", "â", "ä", "ã", "å", "è", "é", "ê", "ë",
+    "ì", "í", "î", "ï", "ò", "ó", "ô", "ö", "õ", "ù", "ú", "û", "ý", "ÿ", "ṛ", "ḷ", "ḹ",
+    "A", "Λ", "ƛ", "E", "Ξ", "I", "Φ", "Ȯ", "O", "Ω", "Ō", "U", "Ꝏ", "Æ", "C", "À",
   ]);
 
   const GRAPHEME_SEGMENTER = typeof Intl !== "undefined" && Intl.Segmenter
@@ -32,44 +32,53 @@
       : Array.from(input);
   }
 
-  function isVowelNucleus(grapheme = "") {
+  function isVowel(grapheme = "") {
     const base = String(grapheme || "").normalize("NFD").replace(/\p{M}+/gu, "").normalize("NFC");
-    return DA_VOWEL_NUCLEI.has(grapheme) || DA_VOWEL_NUCLEI.has(base);
+    return PHONETIC_VOWELS.has(grapheme) || PHONETIC_VOWELS.has(base);
   }
 
   function isLetterLike(grapheme = "") {
     return /[\p{L}\p{N}]/u.test(String(grapheme || ""));
   }
 
-  function splitDaSyllables(word = "") {
+  function splitPhoneticSyllables(word = "") {
     const input = String(word || "");
     const chars = graphemes(input);
     if (chars.length < 2) return [input];
 
+    // Treat adjacent vowel symbols as one nucleus so IPA diphthongs such as
+    // /aɪ/, /aʊ/, /ɔɪ/, /eɪ/, and /əʊ/ stay in a single colored syllable.
     const nuclei = [];
-    for (let i = 0; i < chars.length; i += 1) {
-      if (isVowelNucleus(chars[i])) nuclei.push(i);
+    let i = 0;
+    while (i < chars.length) {
+      if (!isVowel(chars[i])) {
+        i += 1;
+        continue;
+      }
+      const start = i;
+      i += 1;
+      while (i < chars.length && (isVowel(chars[i]) || chars[i] === "ː")) i += 1;
+      nuclei.push({ start, end: i });
     }
+
     if (nuclei.length <= 1) return [input];
 
     const boundaries = [];
     for (let n = 0; n < nuclei.length - 1; n += 1) {
       const left = nuclei[n];
       const right = nuclei[n + 1];
-      const between = chars.slice(left + 1, right);
-      const consonants = between.filter(isLetterLike);
-
-      // Maximize the next syllable's onset without swallowing the whole cluster.
-      // V-V sequences split directly; one consonant goes with the next vowel;
-      // larger clusters keep all but the last consonant with the prior syllable.
-      let boundary;
-      if (between.length === 0) {
-        boundary = right;
-      } else if (consonants.length <= 1) {
-        boundary = Math.max(left + 1, right - 1);
-      } else {
-        boundary = Math.max(left + 1, right - 1);
+      const between = chars.slice(left.end, right.start);
+      const consonantIndexes = [];
+      for (let j = 0; j < between.length; j += 1) {
+        if (isLetterLike(between[j])) consonantIndexes.push(j);
       }
+
+      let boundary = right.start;
+      if (consonantIndexes.length) {
+        // Attach the final consonant before the next nucleus to the next syllable.
+        boundary = left.end + consonantIndexes[consonantIndexes.length - 1];
+      }
+      boundary = Math.max(left.end, Math.min(boundary, right.start));
       if (boundary > 0 && boundary < chars.length) boundaries.push(boundary);
     }
 
@@ -82,11 +91,11 @@
       start = end;
     }
     if (start < chars.length) pieces.push(chars.slice(start).join(""));
-    return pieces.filter(Boolean).length > 1 ? pieces.filter(Boolean) : [input];
+    const filtered = pieces.filter(Boolean);
+    return filtered.length > 1 ? filtered : [input];
   }
 
-  // Replace the base heuristic. It now understands the final DA glyph set.
-  splitSyllableLikeWord = splitDaSyllables;
+  splitSyllableLikeWord = splitPhoneticSyllables;
 
   const baseSplitColorSegments = splitColorSegments;
   splitColorSegments = function patchedSplitColorSegments(text, mode = "word") {
@@ -105,7 +114,7 @@
         segments.push({ text: token, colorable: false });
         continue;
       }
-      for (const piece of splitDaSyllables(token)) {
+      for (const piece of splitPhoneticSyllables(token)) {
         segments.push({ text: piece, colorable: true });
       }
     }
@@ -130,7 +139,7 @@
       const span = document.createElement("span");
       span.className = `${className || "translation"} syllable`;
       span.dataset.syllableIndex = String(syllableIndex);
-      span.style.setProperty("--seg-color", DA_SYLLABLE_COLORS[syllableIndex % DA_SYLLABLE_COLORS.length]);
+      span.style.setProperty("--seg-color", PHONETIC_SYLLABLE_COLORS[syllableIndex % PHONETIC_SYLLABLE_COLORS.length]);
       span.textContent = part.text;
       target.appendChild(span);
       syllableIndex += 1;
@@ -145,11 +154,11 @@
   }
 
   window.__worldSyllableDiagnostics = () => {
-    const sample = "KOLOR KΩDID SILΛBΛL";
+    const sample = "kəlɚ koʊdɪd sɪləbəl";
     const sampleParts = splitColorSegments(sample, "syllable").filter((part) => part.colorable).map((part) => part.text);
     return {
       patched: true,
-      paletteSize: DA_SYLLABLE_COLORS.length,
+      paletteSize: PHONETIC_SYLLABLE_COLORS.length,
       sample,
       sampleParts,
       renderedSyllables: document.querySelectorAll(".news-da .syllable").length,
