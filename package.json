@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check:syntax": "node --check app.js && node --check globe-runtime-fix.js && node --check translation-runtime-fix.js && node --check translation-runtime-finalize.js && node --check syllable-color-fix.js",
+    "check:syntax": "node --check app.js && node --check globe-runtime-fix.js && node --check translation-runtime-fix.js && node --check translation-runtime-finalize.js && node --check syllable-color-fix.js && node --check ipa-phonetics.js",
     "check:static": "node scripts/static-guard.mjs",
     "test:setup": "node scripts/test-setup.mjs",
     "test:smoke": "node scripts/browser-smoke.mjs"
