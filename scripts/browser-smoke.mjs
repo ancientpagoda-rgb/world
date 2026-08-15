@@ -31,14 +31,12 @@ function resolveChromiumExecutablePath() {
     "/usr/bin/google-chrome-stable",
     "/usr/bin/google-chrome",
   ].filter(Boolean);
-
   return candidates.find((candidate) => existsSync(candidate) && !isSnapWrapper(candidate, "chromium"));
 }
 
 function discoverCachedChromiumExecutables() {
   const cacheRoot = join(process.env.PLAYWRIGHT_BROWSERS_PATH || join(process.env.HOME || "", ".cache", "ms-playwright"));
   if (!cacheRoot || !existsSync(cacheRoot)) return [];
-
   const candidates = [];
   for (const dir of readdirSync(cacheRoot)) {
     if (!dir.startsWith("chromium-") && !dir.startsWith("chromium_headless_shell-")) continue;
@@ -58,7 +56,6 @@ function resolveFirefoxExecutablePath() {
     "/usr/bin/firefox",
     "/usr/bin/firefox-esr",
   ].filter(Boolean);
-
   return candidates.find((candidate) => existsSync(candidate) && !isSnapWrapper(candidate, "firefox"));
 }
 
@@ -78,20 +75,17 @@ async function startStaticServer() {
       const pathname = requestedUrl.pathname === "/" ? "/index.html" : requestedUrl.pathname;
       const decodedPath = decodeURIComponent(pathname);
       const filePath = normalize(join(root, decodedPath));
-
       if (filePath !== root && !filePath.startsWith(root + sep)) {
         res.writeHead(403);
         res.end("Forbidden");
         return;
       }
-
       const fileStat = await stat(filePath);
       if (!fileStat.isFile()) {
         res.writeHead(404);
         res.end("Not found");
         return;
       }
-
       res.writeHead(200, {
         "Content-Length": fileStat.size,
         "Content-Type": contentTypes[extname(filePath)] || "application/octet-stream",
@@ -112,10 +106,7 @@ async function startStaticServer() {
   });
 
   const address = server.address();
-  if (!address || typeof address === "string") {
-    throw new Error("Could not start local smoke-test server");
-  }
-
+  if (!address || typeof address === "string") throw new Error("Could not start local smoke-test server");
   return { server, url: `http://127.0.0.1:${address.port}/` };
 }
 
@@ -128,13 +119,11 @@ async function launchBrowser() {
       console.warn(`Chromium at ${executablePath} could not launch: ${error.message}`);
     }
   }
-
   try {
     return await chromium.launch({ args: ["--no-sandbox"] });
   } catch (error) {
     console.warn(`Bundled Chromium could not launch: ${error.message}`);
   }
-
   const firefoxExecutablePath = resolveFirefoxExecutablePath();
   if (firefoxExecutablePath) {
     try {
@@ -143,14 +132,11 @@ async function launchBrowser() {
       console.warn(`Firefox at ${firefoxExecutablePath} could not launch: ${error.message}`);
     }
   }
-
   return null;
-
 }
 
 let browser;
 const errors = [];
-
 try {
   browser = await launchBrowser();
   if (!browser) {
@@ -163,18 +149,16 @@ try {
 }
 
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-
-page.on("pageerror", (error) => {
-  errors.push(error.stack || error.message || String(error));
-});
-
+page.on("pageerror", (error) => errors.push(error.stack || error.message || String(error)));
 page.on("console", (message) => {
-  if (message.type() === "error") {
-    const location = message.location();
-    if (location.url.endsWith("/favicon.ico")) return;
-    const suffix = location.url ? ` (${location.url})` : "";
-    errors.push(`${message.text()}${suffix}`);
-  }
+  if (message.type() !== "error") return;
+  const location = message.location();
+  const sourceUrl = location.url || "";
+  if (sourceUrl.endsWith("/favicon.ico")) return;
+  // External font CDNs are presentation-only and occasionally return transient 404s in CI.
+  if (/^https:\/\/fonts\.(?:gstatic|googleapis)\.com\//.test(sourceUrl)) return;
+  const suffix = sourceUrl ? ` (${sourceUrl})` : "";
+  errors.push(`${message.text()}${suffix}`);
 });
 
 try {
@@ -183,12 +167,14 @@ try {
     () => document.querySelector("#country-list")?.children.length > 0,
     { timeout: 15000 },
   );
+  await page.waitForFunction(
+    () => typeof window.__worldTranslationDiagnostics === "function" && window.__worldTranslationFinalizer === "1.0.0",
+    { timeout: 10000 },
+  );
   await page.waitForTimeout(1500);
 
   const buildTag = await page.locator("#build-tag").innerText().catch(() => "");
-  if (/ERROR:/i.test(buildTag)) {
-    errors.push(`Build tag contains runtime error text: ${buildTag}`);
-  }
+  if (/ERROR:/i.test(buildTag)) errors.push(`Build tag contains runtime error text: ${buildTag}`);
 
   const firstRowText = await page.evaluate(() => {
     const row = document.querySelector("#country-list .country-row");
@@ -198,6 +184,21 @@ try {
     errors.push(`First country row should begin with India, got: ${firstRowText.slice(0, 120)}`);
   }
 
+  const translationProbe = await page.evaluate(async () => ({
+    english: await window.toEnglishDisplay("Hello world", "en"),
+    da: await window.toDaDisplay("the quick brown fox", "en"),
+    diagnostics: window.__worldTranslationDiagnostics(),
+  }));
+  if (translationProbe.english !== "Hello world") {
+    errors.push(`English passthrough translation changed unexpectedly: ${translationProbe.english}`);
+  }
+  if (!translationProbe.da.includes("Þ") || /[a-z]/.test(translationProbe.da)) {
+    errors.push(`DA phonetic probe was not fully finalized: ${translationProbe.da}`);
+  }
+  if (!translationProbe.diagnostics || translationProbe.diagnostics.version !== "2.0.0") {
+    errors.push("Translation diagnostics were unavailable or had the wrong version.");
+  }
+
   const buildTagHidden = await page.evaluate(() => {
     const tag = document.querySelector("#build-tag");
     return Boolean(tag && getComputedStyle(tag).display === "none");
@@ -205,10 +206,7 @@ try {
   if (!buildTagHidden) errors.push("Build tag should be hidden unless debug mode is enabled.");
 
   await page.goto(debugUrl.toString(), { waitUntil: "domcontentloaded", timeout: 20000 });
-  await page.waitForFunction(
-    () => document.body.classList.contains("debug-mode"),
-    { timeout: 5000 },
-  );
+  await page.waitForFunction(() => document.body.classList.contains("debug-mode"), { timeout: 5000 });
   const buildTagVisible = await page.evaluate(() => {
     const tag = document.querySelector("#build-tag");
     return Boolean(tag && getComputedStyle(tag).display !== "none");
@@ -225,4 +223,4 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log("Browser smoke test passed: page loaded, rendered country rows, and threw no JS errors.");
+console.log("Browser smoke test passed: page, translations, DA phonetics, and debug mode loaded without JS errors.");
