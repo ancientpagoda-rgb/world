@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 
 const app = await readFile("app.js", "utf8");
+const globePatch = await readFile("globe-runtime-fix.js", "utf8");
 const index = await readFile("index.html", "utf8");
 const failures = [];
 
@@ -23,11 +24,24 @@ if (appLines < 1000) {
   failures.push(`app.js looks truncated: expected at least 1000 lines, found ${appLines}`);
 }
 
+const requireInGlobePatch = [
+  "setupGlobeInteraction = function",
+  "drawWeatherOrbFrame = function",
+  "loadNoaaWeatherGrid()",
+  "drawWorldGeometry",
+  "__worldGlobeDiagnostics",
+];
+
+for (const token of requireInGlobePatch) {
+  if (!globePatch.includes(token)) failures.push(`globe-runtime-fix.js is missing ${token}`);
+}
+
 const requireInIndex = [
   "country-list",
   "starfield-canvas",
   "weather-orb-canvas",
   "./app.js",
+  "./globe-runtime-fix.js",
   "window.initializeWeatherOrb()",
 ];
 
@@ -41,4 +55,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`Static guard passed: app.js has ${appLines} lines and country + globe runtime hooks are wired.`);
+console.log(`Static guard passed: app.js has ${appLines} lines and country + interactive globe runtime hooks are wired.`);
