@@ -2,7 +2,6 @@
   "use strict";
 
   const baseToIpaDisplay = window.toIpaDisplay;
-  const baseHydrateNewsItem = window.hydrateNewsItem;
   if (typeof baseToIpaDisplay !== "function") return;
 
   const counters = { mixed: 0, chinese: 0, residual: 0, failures: 0 };
@@ -132,32 +131,6 @@
   }
 
   window.toIpaDisplay = qualityIpaDisplay;
-
-  if (typeof baseHydrateNewsItem === "function") {
-    window.hydrateNewsItem = async function qualityHydrateNewsItem(row, originalText, language = "") {
-      const originalEl = row.querySelector(".news-original");
-      const ipaEl = row.querySelector(".news-da");
-      const englishEl = row.querySelector(".news-en");
-      if (!originalEl || !ipaEl || !englishEl || typeof toEnglishDisplay !== "function") {
-        return baseHydrateNewsItem(row, originalText, language);
-      }
-
-      const [ipaText, englishText] = await Promise.all([
-        qualityIpaDisplay(originalText, language),
-        toEnglishDisplay(originalText, language),
-      ]);
-
-      if (typeof window.setCoordinatedWordColors === "function") {
-        window.setCoordinatedWordColors(originalEl, originalText, ipaEl, ipaText || originalText, language);
-      } else {
-        originalEl.textContent = originalText;
-        ipaEl.textContent = ipaText || originalText;
-      }
-      englishEl.textContent = englishText || originalText;
-      ipaEl.dataset.phoneticsMode = "ipa-quality";
-      ipaEl.setAttribute("aria-label", `IPA phonetics: ${ipaText || originalText}`);
-    };
-  }
 
   setTimeout(() => {
     if (typeof applyCountryFilter === "function") {
