@@ -60,6 +60,8 @@ try {
     const sourceTokens = window.tokenizeHeadlineWords(sourceText).filter((part) => part.wordLike);
     const originalWords = Array.from(original?.querySelectorAll(".paired-original") || []);
     const ipaWords = Array.from(ipa?.querySelectorAll(".paired-ipa") || []);
+    const chineseProbe = window.tokenizeHeadlineWords("我很中国！中国成为潮流", "zh").filter((part) => part.wordLike).map((part) => part.text);
+    const headers = Array.from(document.querySelector(".news-list-header")?.children || []).map((el) => el.textContent?.trim());
     return {
       diagnostics: window.__worldWordPairDiagnostics(),
       sourceText,
@@ -74,27 +76,32 @@ try {
       ipaTexts: ipaWords.map((el) => el.textContent),
       englishChildCount: english?.children.length ?? -1,
       mixedProbeTokens: window.tokenizeHeadlineWords("क्या रेड होगा टीम india tour of bangladesh 3 T20 मैच").filter((part) => part.wordLike).map((part) => part.text),
+      chineseProbe,
+      headers,
     };
   });
 
   const failures = [];
   if (!result.diagnostics?.patched || !result.diagnostics.firstPairMatches) failures.push(`diagnostics wrong: ${JSON.stringify(result.diagnostics)}`);
+  if (result.diagnostics?.ipaScriptLeaks !== 0) failures.push(`IPA contains non-IPA script leakage: ${result.diagnostics?.ipaScriptLeaks}`);
   if (!result.sourceTokenCount || result.originalCount !== result.sourceTokenCount) failures.push(`Original spans ${result.originalCount} != source tokens ${result.sourceTokenCount}`);
   if (result.ipaCount !== result.originalCount) failures.push(`IPA spans ${result.ipaCount} != Original spans ${result.originalCount}`);
   if (result.originalIndexes.join("|") !== result.ipaIndexes.join("|")) failures.push("Original and IPA word indexes drifted");
   if (result.originalColors.join("|") !== result.ipaColors.join("|")) failures.push("Original and IPA word colors drifted");
   if (new Set(result.originalColors).size !== result.originalColors.length) failures.push("A headline word reused an earlier color");
-  if (result.originalColors.some((color) => !color.trim())) failures.push("At least one Original word was left uncolored");
+  if (result.originalColors.some((color) => !color.trim())) failures.push("At least one Native-language word was left uncolored");
   if (result.ipaColors.some((color) => !color.trim())) failures.push("At least one IPA word was left uncolored");
   if (result.englishChildCount !== 0) failures.push(`English translation contains colored/wrapped children: ${result.englishChildCount}`);
   if (result.mixedProbeTokens.join("|") !== "क्या|रेड|होगा|टीम|india|tour|of|bangladesh|3|T20|मैच") failures.push(`Mixed Hindi/Latin tokenization failed: ${result.mixedProbeTokens.join("|")}`);
+  if (result.chineseProbe.length < 4 || !result.chineseProbe.includes("中国") || !result.chineseProbe.includes("成为") || !result.chineseProbe.includes("潮流")) failures.push(`Chinese word segmentation failed: ${result.chineseProbe.join("|")}`);
+  if (result.headers.join("|") !== "Native language|IPA phonetics|English translation") failures.push(`Column headers wrong: ${result.headers.join("|")}`);
 
   if (failures.length) {
     console.error("Word-pair browser smoke failed:");
     for (const failure of failures) console.error(`- ${failure}`);
     process.exitCode = 1;
   } else {
-    console.log(`Word-pair browser smoke passed: ${result.originalCount} exact Original ↔ IPA word pairs; every word colored uniquely; English plain.`);
+    console.log(`Word-pair browser smoke passed: ${result.originalCount} exact Native ↔ IPA word pairs; CJK segmented; English plain; no source-script IPA leaks.`);
   }
 } finally {
   if (browser) await browser.close();
