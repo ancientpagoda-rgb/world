@@ -155,7 +155,6 @@ page.on("console", (message) => {
   const location = message.location();
   const sourceUrl = location.url || "";
   if (sourceUrl.endsWith("/favicon.ico")) return;
-  // External font CDNs are presentation-only and occasionally return transient 404s in CI.
   if (/^https:\/\/fonts\.(?:gstatic|googleapis)\.com\//.test(sourceUrl)) return;
   const suffix = sourceUrl ? ` (${sourceUrl})` : "";
   errors.push(`${message.text()}${suffix}`);
@@ -170,7 +169,9 @@ try {
   await page.waitForFunction(
     () => typeof window.__worldTranslationDiagnostics === "function"
       && window.__worldTranslationFinalizer === "1.0.0"
-      && typeof window.__worldSyllableDiagnostics === "function",
+      && typeof window.__worldSyllableDiagnostics === "function"
+      && typeof window.__worldIpaDiagnostics === "function"
+      && typeof window.toIpaDisplay === "function",
     { timeout: 10000 },
   );
   await page.waitForTimeout(1500);
@@ -188,22 +189,37 @@ try {
 
   const translationProbe = await page.evaluate(async () => ({
     english: await window.toEnglishDisplay("Hello world", "en"),
-    da: await window.toDaDisplay("the quick brown fox", "en"),
+    ipa: await window.toIpaDisplay("the quick brown fox", "en"),
     diagnostics: window.__worldTranslationDiagnostics(),
+    ipaDiagnostics: window.__worldIpaDiagnostics(),
+    header: document.querySelector(".news-list-header")?.children?.[1]?.textContent || "",
+    legend: document.querySelector("#ipa-sound-legend summary")?.textContent || "",
   }));
   if (translationProbe.english !== "Hello world") {
     errors.push(`English passthrough translation changed unexpectedly: ${translationProbe.english}`);
   }
-  if (!translationProbe.da.includes("Þ") || /[a-z]/.test(translationProbe.da)) {
-    errors.push(`DA phonetic probe was not fully finalized: ${translationProbe.da}`);
+  if (!translationProbe.ipa.includes("ðə") || !translationProbe.ipa.includes("kwɪk") || !translationProbe.ipa.includes("aʊ")) {
+    errors.push(`IPA phonetic probe did not contain expected broad IPA sounds: ${translationProbe.ipa}`);
+  }
+  if (/[ΛƛΞΦȮΩŌꝎҸƷÞÐ]/.test(translationProbe.ipa)) {
+    errors.push(`IPA phonetic probe leaked DA glyphs: ${translationProbe.ipa}`);
   }
   if (!translationProbe.diagnostics || translationProbe.diagnostics.version !== "2.0.0") {
     errors.push("Translation diagnostics were unavailable or had the wrong version.");
   }
+  if (!translationProbe.ipaDiagnostics?.patched || translationProbe.ipaDiagnostics.renderedMode !== "ipa") {
+    errors.push(`IPA runtime diagnostics were unavailable or wrong: ${JSON.stringify(translationProbe.ipaDiagnostics)}`);
+  }
+  if (!/IPA phonetics/i.test(translationProbe.header)) {
+    errors.push(`Phonetics header was not switched to IPA: ${translationProbe.header}`);
+  }
+  if (!/IPA sound legend/i.test(translationProbe.legend)) {
+    errors.push(`IPA sound legend was not present: ${translationProbe.legend}`);
+  }
 
   const syllableProbe = await page.evaluate(() => {
     const target = document.createElement("div");
-    window.setColorCodedSegments(target, "KOLOR KΩDID SILΛBΛL", "translation", "syllable");
+    window.setColorCodedSegments(target, "kəlɚ koʊdɪd sɪləbəl", "translation", "syllable");
     const spans = Array.from(target.querySelectorAll(".syllable"));
     return {
       diagnostics: window.__worldSyllableDiagnostics(),
@@ -213,16 +229,16 @@ try {
     };
   });
   if (!syllableProbe.diagnostics?.patched || syllableProbe.diagnostics.paletteSize < 4) {
-    errors.push("DA syllable color diagnostics were unavailable or incomplete.");
+    errors.push("IPA syllable color diagnostics were unavailable or incomplete.");
   }
   if (syllableProbe.texts.length < 6) {
-    errors.push(`DA syllable probe did not split enough syllables: ${syllableProbe.texts.join("|")}`);
+    errors.push(`IPA syllable probe did not split enough syllables: ${syllableProbe.texts.join("|")}`);
   }
   if (syllableProbe.colors.length >= 2 && syllableProbe.colors[0] === syllableProbe.colors[1]) {
-    errors.push("Adjacent DA syllables received the same color.");
+    errors.push("Adjacent IPA syllables received the same color.");
   }
   if (syllableProbe.indexes[0] !== "0" || syllableProbe.indexes[1] !== "1") {
-    errors.push(`DA syllable indexes were not sequential: ${syllableProbe.indexes.slice(0, 4).join(",")}`);
+    errors.push(`IPA syllable indexes were not sequential: ${syllableProbe.indexes.slice(0, 4).join(",")}`);
   }
 
   const buildTagHidden = await page.evaluate(() => {
@@ -249,4 +265,4 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log("Browser smoke test passed: page, translations, DA phonetics, syllable colors, and debug mode loaded without JS errors.");
+console.log("Browser smoke test passed: page, translations, IPA phonetics, syllable colors, legend, and debug mode loaded without JS errors.");
