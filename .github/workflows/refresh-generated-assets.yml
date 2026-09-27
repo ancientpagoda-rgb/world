@@ -26,6 +26,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -83,8 +88,19 @@ jobs:
           if len(rows) < 200:
               raise SystemExit(f"expected at least 200 country rows, found {len(rows)}")
           headline_count = sum(1 for row in rows if row.get("headline"))
-          print(f"Validated {len(rows)} country rows, {headline_count} headlines, and {len(points)} NOAA grid points")
+          headline_url_count = sum(1 for row in rows if row.get("headlineUrl"))
+          english_count = sum(1 for row in rows if row.get("englishHeadline"))
+          if headline_url_count < 180:
+              raise SystemExit(f"expected at least 180 headline URLs, found {headline_url_count}")
+          if english_count < 180:
+              raise SystemExit(f"expected at least 180 English headline values, found {english_count}")
+          print(f"Validated {len(rows)} country rows, {headline_count} headlines, {headline_url_count} URLs, {english_count} English values, and {len(points)} NOAA grid points")
           PY
+
+      - name: Run application guards
+        run: |
+          npm run check:syntax
+          npm run check:static
 
       - name: Commit refreshed assets
         uses: stefanzweifel/git-auto-commit-action@v5

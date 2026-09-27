@@ -1,9 +1,11 @@
 import { STAR_CATALOG, globeRotY, celestialBodies, STARS_URL } from "./state.js";
 import { computeCelestialBodies } from "./planets.js";
 
-export async function loadStarCatalog() {
-  const response = await fetch(STARS_URL);
+export async function loadStarCatalog(url = STARS_URL) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Star catalog request failed: ${response.status}`);
   const stars = await response.json();
+  if (!Array.isArray(stars)) throw new Error("Star catalog response is not an array");
   const catalog = [];
   for (let i = 0; i < stars.length; i++) {
     const s = stars[i];

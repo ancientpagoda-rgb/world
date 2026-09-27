@@ -3,6 +3,8 @@ const DATA_URL = "../world-data.json";
 const GEOJSON_URL = "https://unpkg.com/visionscarto-world-atlas@0.0.4/world/50m_countries.geojson";
 
 let countryShapes = null;
+const PAGE_SIZE = 48;
+let visibleLimit = PAGE_SIZE;
 
 function escapeHtml(value) {
   return String(value)
@@ -86,18 +88,24 @@ function renderCountries(countries) {
   const root = document.querySelector("#country-list");
   const items = [];
 
-  countries.forEach((item, index) => {
+  countries.slice(0, visibleLimit).forEach((item, index) => {
     const desc = item.description || "";
     const descClamped = desc.length > 280 ? desc.slice(0, 277) + "..." : desc;
     const thumbUrl = getCountryThumbnailDataURL(item.iso3, 52, 39);
+    const headline = item.headline || "No current headline available.";
+    const headlineUrl = /^https:\/\//i.test(item.headlineUrl || "")
+      ? item.headlineUrl
+      : item.headline
+        ? `https://news.google.com/search?q=${encodeURIComponent(item.headline)}`
+        : "";
     items.push(`
         <article class="country-row">
           <div class="country-rank">#${index + 1}</div>
           <div class="country-thumb-wrap">${thumbUrl ? `<img class="country-thumb" src="${thumbUrl}" width="52" height="39" alt="">` : ""}</div>
           <div>
-            <p class="country-headline">${escapeHtml(item.name)}</p>
+            <h2 class="country-headline">${escapeHtml(item.name)}</h2>
             <span class="country-code">${escapeHtml(item.iso3)}</span>
-            <p class="country-news">${escapeHtml(item.headline || "No headline.")}</p>
+            <p class="country-news">${headlineUrl ? `<a href="${escapeHtml(headlineUrl)}" target="_blank" rel="noopener noreferrer nofollow">${escapeHtml(headline)}</a>` : escapeHtml(headline)}</p>
             ${descClamped ? `<p class="country-description">${escapeHtml(descClamped)}</p>` : ""}
           </div>
           <div class="country-population">
@@ -109,6 +117,19 @@ function renderCountries(countries) {
   });
 
   root.innerHTML = items.join("");
+  if (visibleLimit < countries.length) {
+    const footer = document.createElement("div");
+    footer.className = "country-list-footer";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = `Show ${Math.min(PAGE_SIZE, countries.length - visibleLimit)} more countries`;
+    button.addEventListener("click", () => {
+      visibleLimit += PAGE_SIZE;
+      renderCountries(countries);
+    });
+    footer.appendChild(button);
+    root.appendChild(footer);
+  }
 }
 
 function renderLoading() {
@@ -185,6 +206,7 @@ if (typeof GlobeWidget !== "undefined") {
     stars: true,
     nightLights: true,
     drag: true,
+    starsUrl: "../stars.json",
   });
 }
 

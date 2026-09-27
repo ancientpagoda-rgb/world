@@ -8,6 +8,14 @@
       name="description"
       content="World is a browser-based live globe with weather, celestial context, searchable country briefings, and translated summaries."
     />
+    <meta name="theme-color" content="#03070d" />
+    <meta name="robots" content="index,follow" />
+    <link rel="canonical" href="https://ancientpagoda-rgb.github.io/world/" />
+    <meta property="og:title" content="World — live globe & country briefing" />
+    <meta property="og:description" content="Explore a live Earth globe, weather context, and searchable country briefings." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://ancientpagoda-rgb.github.io/world/" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -29,6 +37,12 @@
     >Rasters: Off</button>
 
     <main>
+      <header class="site-intro">
+        <p class="site-kicker">Live Earth intelligence</p>
+        <h1>World</h1>
+        <p>Explore current Earth imagery, weather context, and country briefings in native language, IPA, and English.</p>
+      </header>
+
       <section class="world-visual-stage" aria-label="Interactive live Earth globe">
         <canvas
           id="weather-orb-canvas"
@@ -114,13 +128,32 @@
       </details>
 
       <section class="country-list-section" aria-labelledby="country-list-heading">
-        <h2 id="country-list-heading" class="sr-only">Country briefing list</h2>
+        <div class="country-list-heading-row">
+          <div>
+            <p class="site-kicker">Country intelligence</p>
+            <h2 id="country-list-heading">Country briefings</h2>
+          </div>
+          <p id="country-summary" class="country-summary" role="status" aria-live="polite"></p>
+        </div>
+        <div class="country-controls" role="search" aria-label="Find a country briefing">
+          <label class="country-control">
+            <span>Search countries and headlines</span>
+            <input id="country-filter" type="search" autocomplete="off" placeholder="Try Japan, FRA, climate…" />
+          </label>
+          <label class="country-control country-control-jump">
+            <span>Jump to country</span>
+            <select id="country-jump">
+              <option value="">Choose a country…</option>
+            </select>
+          </label>
+        </div>
         <div id="country-list" class="country-list"></div>
       </section>
     </main>
 
     <script>
       (async () => {
+        window.__worldDeferAppStart = true;
         const searchParams = new URLSearchParams(location.search);
         if (searchParams.get("debug") === "1") document.body.classList.add("debug-mode");
 
@@ -152,8 +185,13 @@
         const loadWordPairPatch = () => {
           const patch = document.createElement("script");
           patch.src = `./word-pair-alignment.js?v=${encodeURIComponent(appV)}`;
-          patch.onload = loadGlobePatch;
-          patch.onerror = () => { reportLoadError("Failed to load word-pair-alignment.js; using independent word colors"); loadGlobePatch(); };
+          const startAppAndGlobe = () => {
+            if (typeof window.startWorldApp === "function") window.startWorldApp();
+            else reportLoadError("World application bootstrap is unavailable");
+            loadGlobePatch();
+          };
+          patch.onload = startAppAndGlobe;
+          patch.onerror = () => { reportLoadError("Failed to load word-pair-alignment.js; using independent word colors"); startAppAndGlobe(); };
           document.body.appendChild(patch);
         };
         const waitForLanguageAwareIpa = () => {
@@ -207,7 +245,7 @@
         app.onload = loadTranslationPatch;
         document.body.appendChild(app);
 
-        if (tag) tag.textContent = `World v1.0.16\napp ${appV}\nagent: connected`;
+        if (tag) tag.textContent = `World v1.1.0\napp ${appV}\nagent: connected`;
 
         const toggle = document.getElementById("rasters-toggle");
         const rastersOn = () => searchParams.get("rasters") === "1";

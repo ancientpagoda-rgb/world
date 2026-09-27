@@ -349,14 +349,14 @@
   window.setCoordinatedWordColors = setCoordinatedWordColors;
 
   const previousHydrateNewsItem = hydrateNewsItem;
-  hydrateNewsItem = async function coordinatedLanguageAwareHydrate(row, originalText, language = "") {
+  hydrateNewsItem = async function coordinatedLanguageAwareHydrate(row, originalText, language = "", preparedEnglish = "") {
     const originalEl = row.querySelector(".news-original");
     const ipaEl = row.querySelector(".news-da");
     const englishEl = row.querySelector(".news-en");
-    if (!originalEl || !ipaEl || !englishEl) return previousHydrateNewsItem(row, originalText, language);
+    if (!originalEl || !ipaEl || !englishEl) return previousHydrateNewsItem(row, originalText, language, preparedEnglish);
     const [ipaText, englishText] = await Promise.all([
       languageAwareIpaDisplay(originalText, language),
-      toEnglishDisplay(originalText, language),
+      preparedEnglish ? Promise.resolve(preparedEnglish) : toEnglishDisplay(originalText, language),
     ]);
     setCoordinatedWordColors(originalEl, originalText, ipaEl, ipaText || originalText, language);
     englishEl.textContent = englishText || originalText;

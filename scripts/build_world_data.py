@@ -439,11 +439,43 @@ def fetch_top_headline(name: str, iso2: str, language: str) -> tuple[str | None,
                     continue
                 title = strip_html(title)
                 if headline_matches_place(title, iso2, aliases):
-                    return title, language
+                    link = (item.findtext("link") or "").strip()
+                    if not link.startswith("https://"):
+                        link = None
+                    return title, link, language
         except Exception:
             continue
 
-    return None, language
+    return None, None, language
+
+
+def translate_to_english(text: str | None, language: str) -> str | None:
+    if not text:
+        return None
+    if language.lower().split("-", 1)[0] == "en":
+        return text
+    params = urllib.parse.urlencode({
+        "client": "gtx",
+        "sl": language or "auto",
+        "tl": "en",
+        "dt": "t",
+        "q": text,
+    })
+    request = urllib.request.Request(
+        f"https://translate.googleapis.com/translate_a/single?{params}",
+        headers=HEADERS,
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            payload = json.load(response)
+        translated = "".join(
+            str(part[0] or "")
+            for part in (payload[0] if isinstance(payload, list) and payload else [])
+            if isinstance(part, list) and part
+        ).strip()
+        return translated or None
+    except Exception:
+        return None
 
 
 def fetch_wikipedia_summary(name: str) -> str | None:
@@ -550,7 +582,8 @@ def main():
             country["nativeLanguage"],
             language_name_to_code,
         )
-        headline, headline_language = fetch_top_headline(country["name"], country["iso2"], native_language)
+        headline, headline_url, headline_language = fetch_top_headline(country["name"], country["iso2"], native_language)
+        english_headline = translate_to_english(headline, headline_language)
         description = fetch_wikipedia_summary_in_lang(country["name"], native_language)
 
         output.append(
@@ -564,6 +597,8 @@ def main():
                 "nativeLanguage": native_language,
                 "language": headline_language,
                 "headline": headline,
+                "headlineUrl": headline_url,
+                "englishHeadline": english_headline or ("English translation unavailable" if headline else None),
                 "description": description,
             }
         )

@@ -278,5 +278,7 @@
     phoneticConversions,
   });
 
-  refreshTranslationsWhenReady();
+  // index.html starts the app only after every runtime layer is installed.
+  // Keep the refresh fallback for direct app.js consumers that do not use that boot sequence.
+  if (!window.__worldDeferAppStart) refreshTranslationsWhenReady();
 })();

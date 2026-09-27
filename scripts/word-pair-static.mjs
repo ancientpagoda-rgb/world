@@ -8,7 +8,7 @@ for (const token of [
   "./word-pair-alignment.js",
   "waitForLanguageAwareIpa",
   "__worldLanguageAwareIpaDiagnostics",
-  "World v1.0.16",
+  "World v1.1.0",
   "Every source word gets its own color",
 ]) {
   if (!index.includes(token)) failures.push(`index.html is missing ${token}`);

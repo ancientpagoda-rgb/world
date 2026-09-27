@@ -22,12 +22,12 @@
 
   <div class="row">
     <div id="globe-b"></div>
-    <div id="globe-c" style="max-width:300px"></div>
+    <div id="globe-c" style="width:100%;max-width:300px"></div>
   </div>
 
   <script src="../dist/earth-globe.min.js"></script>
   <script>
-    var base = "../";
+    var base = "../../";
 
     GlobeWidget.mount('#globe-a', {
       height: 500,
@@ -36,7 +36,6 @@
 
     GlobeWidget.mount('#globe-b', {
       height: 300,
-      weather: true,
       stars: false,
       starsUrl: base + "stars.json"
     });

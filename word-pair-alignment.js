@@ -3,13 +3,6 @@
 
   const WORD_TOKEN_RE = /[\p{L}\p{M}\p{N}]+(?:[’'-][\p{L}\p{M}\p{N}]+)*/gu;
   const STRICT_IPA_LEAK_RE = /[\p{Script=Han}\p{Script=Devanagari}\p{Script=Cyrillic}\p{Script=Greek}\p{Script=Arabic}\p{Script=Hangul}\p{Script=Hiragana}\p{Script=Katakana}]/u;
-  const NON_LATIN_NATIVE_LANGS = new Set([
-    "am", "ar", "be", "bg", "bn", "el", "fa", "gu", "he", "hi", "hy", "ja", "ka", "kk",
-    "km", "ko", "ky", "lo", "mk", "mn", "my", "ne", "pa", "ps", "ru", "si", "sr", "ta", "tg",
-    "th", "ti", "uk", "ur", "uz", "zh",
-  ]);
-  const TRANSLATION_TARGET_ALIASES = { zh: "zh-CN", srp: "sr" };
-  const nativeHeadlineCache = new Map();
   const counters = { rows: 0, words: 0, failures: 0, nativeized: 0, nativeFailures: 0, strictIpaFallbacks: 0 };
 
   function primaryLanguage(language = "") {
@@ -38,51 +31,12 @@
     return hslToRgbTriplet(hue, 0.78, lightness);
   }
 
-  function hasLatinIntrusion(text, language = "") {
-    const lang = primaryLanguage(language);
-    return NON_LATIN_NATIVE_LANGS.has(lang) && /\p{Script=Latin}{2,}/u.test(String(text || ""));
-  }
-
-  async function requestNativeTranslation(sourceText, language) {
-    const target = TRANSLATION_TARGET_ALIASES[primaryLanguage(language)] || primaryLanguage(language);
-    if (!target || target === "auto" || target === "en") return String(sourceText || "");
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 9000);
-    try {
-      const url = new URL("https://translate.googleapis.com/translate_a/single");
-      url.searchParams.set("client", "gtx");
-      url.searchParams.set("sl", "auto");
-      url.searchParams.set("tl", target);
-      url.searchParams.set("dt", "t");
-      url.searchParams.set("q", String(sourceText || ""));
-      const response = await fetch(url.toString(), { signal: controller.signal, cache: "no-store" });
-      if (!response.ok) throw new Error(`native translation request failed: ${response.status}`);
-      const data = await response.json();
-      const translated = Array.isArray(data?.[0])
-        ? data[0].map((part) => (Array.isArray(part) ? String(part[0] || "") : "")).join("").trim()
-        : "";
-      if (!translated) throw new Error("empty native translation response");
-      return translated;
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
   async function nativeizeHeadlineText(text = "", language = "") {
     const input = String(text || "");
-    if (!input || !hasLatinIntrusion(input, language)) return input;
-    const key = `${primaryLanguage(language)}\u0000${input}`;
-    if (nativeHeadlineCache.has(key)) return nativeHeadlineCache.get(key);
-    try {
-      const translated = await requestNativeTranslation(input, language);
-      nativeHeadlineCache.set(key, translated);
-      counters.nativeized += 1;
-      return translated;
-    } catch (error) {
-      counters.nativeFailures += 1;
-      console.warn("Native-language headline normalization unavailable:", error);
-      return input;
-    }
+    // Preserve the publisher's source headline. Translating mixed-script proper
+    // nouns in the browser caused request storms and could silently rewrite names.
+    void language;
+    return input;
   }
 
   function tokenizeWithSegmenter(input, language) {
@@ -193,7 +147,7 @@
     }
   }
 
-  async function alignHeadlineWordPairs(row, originalText, language = "") {
+  async function alignHeadlineWordPairs(row, originalText, language = "", preparedEnglish = "") {
     const originalEl = row?.querySelector?.(".news-original");
     const ipaEl = row?.querySelector?.(".news-da");
     const englishEl = row?.querySelector?.(".news-en");
@@ -201,7 +155,7 @@
 
     const [nativeText, englishText] = await Promise.all([
       nativeizeHeadlineText(originalText, language),
-      toEnglishDisplay(originalText, language),
+      preparedEnglish ? Promise.resolve(preparedEnglish) : toEnglishDisplay(originalText, language),
     ]);
     const parts = await buildWordPairs(nativeText || originalText, language);
     const count = paintWordPairs(originalEl, ipaEl, parts);
@@ -222,14 +176,14 @@
   }
 
   const previousHydrateNewsItem = hydrateNewsItem;
-  hydrateNewsItem = async function wordPairHydrate(row, originalText, language = "") {
+  hydrateNewsItem = async function wordPairHydrate(row, originalText, language = "", preparedEnglish = "") {
     try {
-      if (await alignHeadlineWordPairs(row, originalText, language)) return;
+      if (await alignHeadlineWordPairs(row, originalText, language, preparedEnglish)) return;
     } catch (error) {
       counters.failures += 1;
       console.warn("Word-pair alignment fallback:", error);
     }
-    return previousHydrateNewsItem(row, originalText, language);
+    return previousHydrateNewsItem(row, originalText, language, preparedEnglish);
   };
 
   window.tokenizeHeadlineWords = tokenizeSource;

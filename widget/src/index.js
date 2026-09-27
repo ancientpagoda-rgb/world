@@ -2,7 +2,6 @@ import { setStarCatalog, setStarsUrl, celestialBodies, setCelestialBodies, setCe
 import { computeCelestialBodies } from "./planets.js";
 import { loadStarCatalog, renderStarfield } from "./starfield.js";
 import { loadEarthTexture } from "./textures.js";
-import { loadLiveWeatherGrid } from "./weather.js";
 import { drawWeatherOrbFrame } from "./renderer.js";
 import { setupGlobeInteraction } from "./interaction.js";
 
@@ -55,6 +54,9 @@ export function mount(selector, options = {}) {
   globeCanvas.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;z-index:1;";
   globeCanvas.width = 1;
   globeCanvas.height = 1;
+  globeCanvas.tabIndex = 0;
+  globeCanvas.setAttribute("role", "application");
+  globeCanvas.setAttribute("aria-label", "Interactive Earth globe. Drag to rotate, use the mouse wheel or plus and minus keys to zoom, and arrow keys to rotate.");
 
   const wrapper = document.createElement("div");
   wrapper.className = "earth-globe-container";
@@ -68,14 +70,15 @@ export function mount(selector, options = {}) {
 
   // Load resources
   loadEarthTexture();
-  if (opts.weather) {
-    loadLiveWeatherGrid().catch(() => {});
-  }
-
   // Star catalog
   (async () => {
-    const catalog = await loadStarCatalog();
-    setStarCatalog(catalog);
+    try {
+      const catalog = await loadStarCatalog(opts.starsUrl);
+      setStarCatalog(catalog);
+    } catch (error) {
+      console.warn("Could not load star catalog; continuing without catalog stars.", error);
+      setStarCatalog([]);
+    }
   })();
 
   // Drag
@@ -100,8 +103,15 @@ export function mount(selector, options = {}) {
 
   // Render loop
   let running = true;
+  const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
+  let lastRenderMs = Number.NEGATIVE_INFINITY;
   const render = (timestamp) => {
     if (!running) return;
+    if (reducedMotion && timestamp - lastRenderMs < 250) {
+      requestAnimationFrame(render);
+      return;
+    }
+    lastRenderMs = timestamp;
     refreshBodies();
     if (opts.stars) {
       renderStarfield(starfieldCtx, starfieldCanvas, timestamp, {

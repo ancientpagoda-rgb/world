@@ -65,6 +65,9 @@ export function computeCelestialBodies() {
       bodies.push({ ra, dec, s: 12, sun: 1, c: p.color, name: p.name });
       continue;
     }
+    // Earth is the observer, not an object in its own geocentric sky. Including it
+    // makes dist=0, which produces NaN coordinates and crashes canvas gradients.
+    if (p.name === "Earth") continue;
     const pos = heliocentricPos(d, p);
     const earth = heliocentricPos(d, PLANET_DATA[3]);
     const dx = pos.x - earth.x;

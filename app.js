@@ -1,6 +1,7 @@
 const populationFormatter = new Intl.NumberFormat("en-US");
 const WORLD_BANK_POPULATION_URL = "https://api.worldbank.org/v2/country/all/indicator/SP.POP.TOTL?format=json&mrv=1&per_page=500";
 const LIVE_POPULATION_REFRESH_MS = 6 * 60 * 60 * 1000;
+const COUNTRY_PAGE_SIZE = 24;
 const countryUi = {
   root: null,
   filterInput: null,
@@ -9,6 +10,7 @@ const countryUi = {
 };
 
 let allCountries = [];
+let visibleCountryLimit = COUNTRY_PAGE_SIZE;
 let livePopulationRefreshTimer = null;
 let livePopulationRefreshInFlight = null;
 
@@ -136,7 +138,7 @@ function syncCountryControls(countries) {
 
   if (countryUi.jumpSelect) {
     const currentValue = countryUi.jumpSelect.value;
-    countryUi.jumpSelect.innerHTML = '<option value=""></option>';
+    countryUi.jumpSelect.innerHTML = '<option value="">Choose a country…</option>';
     for (const item of countries) {
       const option = document.createElement("option");
       option.value = item._rowId || "";
@@ -149,19 +151,21 @@ function syncCountryControls(countries) {
   }
 }
 
-function updateCountrySummary() {
+function updateCountrySummary(visibleCount = 0, totalCount = 0, query = "") {
   if (!countryUi.summary) return;
-  countryUi.summary.textContent = "";
-  countryUi.summary.hidden = true;
+  const qualifier = query ? ` matching “${query}”` : "";
+  countryUi.summary.textContent = `Showing ${populationFormatter.format(visibleCount)} of ${populationFormatter.format(totalCount)}${qualifier}`;
+  countryUi.summary.hidden = false;
 }
 
-async function applyCountryFilter() {
+async function applyCountryFilter({ resetLimit = false } = {}) {
   const rawQuery = String(countryUi.filterInput?.value || "").trim();
   const query = normalizeSearchText(rawQuery);
   const filtered = query ? allCountries.filter((item) => item._search.includes(query)) : allCountries.slice();
+  if (resetLimit) visibleCountryLimit = COUNTRY_PAGE_SIZE;
   syncCountryControls(filtered);
   await renderCountries(filtered);
-  updateCountrySummary(filtered.length, allCountries.length, rawQuery);
+  updateCountrySummary(Math.min(filtered.length, visibleCountryLimit), filtered.length, rawQuery);
 }
 
 // Surface runtime failures on-page (helps debug when the globe goes blank).
@@ -2164,7 +2168,14 @@ function initializeWeatherOrb() {
 
   setupGlobeInteraction(canvas);
 
+  const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
+  let lastRenderMs = Number.NEGATIVE_INFINITY;
   const render = (timestamp) => {
+    if (reducedMotion && timestamp - lastRenderMs < 250) {
+      window.requestAnimationFrame(render);
+      return;
+    }
+    lastRenderMs = timestamp;
     try {
       renderStarfield(timestamp);
     } catch (err) {
@@ -2337,8 +2348,15 @@ function renderNewsItem(item) {
   const row = document.createElement("li");
   row.className = "news-row";
 
-  const original = document.createElement("div");
+  const original = item.url ? document.createElement("a") : document.createElement("div");
   original.className = "news-original";
+  if (item.url) {
+    original.classList.add("headline-link");
+    original.href = item.url;
+    original.target = "_blank";
+    original.rel = "noopener noreferrer nofollow";
+    original.title = item.directUrl ? "Open source article" : "Search Google News for this headline";
+  }
 
   const da = document.createElement("div");
   da.className = "news-da";
@@ -2359,18 +2377,28 @@ function renderNewsItem(item) {
   return row;
 }
 
-async function hydrateNewsItem(row, originalText, language = "") {
+async function hydrateNewsItem(row, originalText, language = "", preparedEnglish = "") {
   const daEl = row.querySelector(".news-da");
   const englishEl = row.querySelector(".news-en");
   if (!daEl || !englishEl) return;
 
   const [daText, englishText] = await Promise.all([
     toDaDisplay(originalText, language),
-    toEnglishDisplay(originalText, language),
+    preparedEnglish ? Promise.resolve(preparedEnglish) : toEnglishDisplay(originalText, language),
   ]);
 
   setColorCodedSegments(daEl, daText || originalText, "translation", "syllable");
   setColorCodedSegments(englishEl, englishText || originalText, "translation", "word");
+}
+
+function getHeadlineLink(item, headlineText) {
+  const candidate = String(item?.headlineUrl || item?.url || "").trim();
+  if (/^https:\/\//i.test(candidate)) return { url: candidate, directUrl: true };
+  if (!headlineText || headlineText === "No headline.") return { url: "", directUrl: false };
+  return {
+    url: `https://news.google.com/search?q=${encodeURIComponent(headlineText)}`,
+    directUrl: false,
+  };
 }
 
 async function renderCountries(countries) {
@@ -2403,8 +2431,9 @@ async function renderCountries(countries) {
     return;
   }
 
-  for (let index = 0; index < countries.length; index += 1) {
-    const item = countries[index];
+  const visibleCountries = countries.slice(0, visibleCountryLimit);
+  for (let index = 0; index < visibleCountries.length; index += 1) {
+    const item = visibleCountries[index];
     const thumbUrl = getCountryThumbnailDataURL(item.iso3, 52, 39);
     const rowId = item._rowId || buildCountryRowId(item, index);
 
@@ -2432,7 +2461,7 @@ async function renderCountries(countries) {
     const body = document.createElement("div");
     body.className = "country-copy";
 
-    const name = document.createElement("p");
+    const name = document.createElement("h3");
     name.className = "country-headline";
     name.id = `${rowId}-title`;
     name.textContent = item.name || "";
@@ -2454,10 +2483,27 @@ async function renderCountries(countries) {
     const newsList = document.createElement("ul");
     newsList.className = "news-list";
 
-    const headlineText = item.title || item.headline || item.text || "No headline.";
-    const row = renderNewsItem({ headline: headlineText, language: item.language || "" });
+    const rawHeadline = item.title || item.headline || item.text || "";
+    const headlineText = rawHeadline || "No current headline available.";
+    const headlineLink = getHeadlineLink(item, rawHeadline);
+    const preparedEnglish = item.englishHeadline
+      || item.english
+      || ((item.language || "").toLowerCase().split(/[-_]/)[0] === "en" || isProbablyEnglishText(rawHeadline)
+        ? rawHeadline
+        : ENGLISH_TRANSLATION_UNAVAILABLE);
+    const row = renderNewsItem({
+      headline: headlineText,
+      language: item.language || "",
+      english: preparedEnglish,
+      ...headlineLink,
+    });
     newsList.appendChild(row);
-    hydrateNewsItem(row, headlineText, item.language || "").catch((err) => reportFatal(err));
+    if (rawHeadline) {
+      hydrateNewsItem(row, headlineText, item.language || "", preparedEnglish).catch((err) => reportFatal(err));
+    } else {
+      row.querySelector(".news-da").textContent = "—";
+      row.querySelector(".news-en").textContent = "—";
+    }
 
     body.append(name, code, header, newsList);
 
@@ -2471,6 +2517,24 @@ async function renderCountries(countries) {
   }
 
   root.appendChild(frag);
+
+  if (visibleCountries.length < countries.length) {
+    const footer = document.createElement("div");
+    footer.className = "country-list-footer";
+    const status = document.createElement("p");
+    status.textContent = `${populationFormatter.format(visibleCountries.length)} of ${populationFormatter.format(countries.length)} countries loaded`;
+    const more = document.createElement("button");
+    more.type = "button";
+    more.className = "show-more-button";
+    more.textContent = `Show ${Math.min(COUNTRY_PAGE_SIZE, countries.length - visibleCountries.length)} more`;
+    more.addEventListener("click", async () => {
+      visibleCountryLimit += COUNTRY_PAGE_SIZE;
+      await renderCountries(countries);
+      updateCountrySummary(Math.min(countries.length, visibleCountryLimit), countries.length, countryUi.filterInput?.value || "");
+    });
+    footer.append(status, more);
+    root.appendChild(footer);
+  }
 }
 
 function renderLoading() {
@@ -2529,14 +2593,23 @@ async function loadCountries() {
   if (countryUi.filterInput && !countryUi.filterInput.dataset.bound) {
     countryUi.filterInput.dataset.bound = "1";
     countryUi.filterInput.addEventListener("input", () => {
-      applyCountryFilter().catch((err) => reportFatal(err));
+      applyCountryFilter({ resetLimit: true }).catch((err) => reportFatal(err));
     });
   }
   if (countryUi.jumpSelect && !countryUi.jumpSelect.dataset.bound) {
     countryUi.jumpSelect.dataset.bound = "1";
-    countryUi.jumpSelect.addEventListener("change", () => {
+    countryUi.jumpSelect.addEventListener("change", async () => {
       const targetId = countryUi.jumpSelect.value;
       if (!targetId) return;
+      const rawQuery = String(countryUi.filterInput?.value || "").trim();
+      const query = normalizeSearchText(rawQuery);
+      const filtered = query ? allCountries.filter((item) => item._search.includes(query)) : allCountries.slice();
+      const targetIndex = filtered.findIndex((item) => item._rowId === targetId);
+      if (targetIndex >= visibleCountryLimit) {
+        visibleCountryLimit = targetIndex + 1;
+        await renderCountries(filtered);
+        updateCountrySummary(Math.min(filtered.length, visibleCountryLimit), filtered.length, rawQuery);
+      }
       const target = document.getElementById(targetId);
       if (target) {
         target.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -2550,10 +2623,18 @@ async function loadCountries() {
   startLivePopulationRefreshLoop();
 }
 
-renderLoading();
-updateCountrySummary(0, 0);
-loadCountries().catch((err) => {
-  console.error("Failed to load country data:", err);
-  renderError();
-  if (countryUi.summary) countryUi.summary.textContent = "Could not load country data.";
-});
+let worldAppStarted = false;
+function startWorldApp() {
+  if (worldAppStarted) return;
+  worldAppStarted = true;
+  renderLoading();
+  updateCountrySummary(0, 0);
+  loadCountries().catch((err) => {
+    console.error("Failed to load country data:", err);
+    renderError();
+    if (countryUi.summary) countryUi.summary.textContent = "Could not load country data.";
+  });
+}
+
+window.startWorldApp = startWorldApp;
+if (!window.__worldDeferAppStart) startWorldApp();

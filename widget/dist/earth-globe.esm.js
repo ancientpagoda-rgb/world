@@ -4,23 +4,6 @@ var STARS_URL = "./stars.json";
 function setStarsUrl(url) {
   STARS_URL = url;
 }
-var WEATHER_API_BASE = "https://api.open-meteo.com/v1/forecast";
-var weatherOrbState = {
-  loading: false,
-  loaded: false,
-  features: [],
-  countryShapes: null,
-  gridData: [],
-  weatherSource: "Synthetic fallback",
-  currentGrid: null,
-  nextGrid: null,
-  currentGridLoaded: false,
-  nextGridLoaded: false,
-  currentGridLoading: false,
-  nextGridLoading: false,
-  currentSlot: 0,
-  nextSlot: 1
-};
 var globeRotY = 0;
 var globeRotX = 0;
 var globeZoom = 1;
@@ -116,6 +99,7 @@ function computeCelestialBodies() {
       bodies.push({ ra: ra2, dec: dec2, s: 12, sun: 1, c: p.color, name: p.name });
       continue;
     }
+    if (p.name === "Earth") continue;
     const pos = heliocentricPos(d, p);
     const earth = heliocentricPos(d, PLANET_DATA[3]);
     const dx = pos.x - earth.x;
@@ -132,9 +116,11 @@ function computeCelestialBodies() {
 }
 
 // src/starfield.js
-async function loadStarCatalog() {
-  const response = await fetch(STARS_URL);
+async function loadStarCatalog(url = STARS_URL) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Star catalog request failed: ${response.status}`);
   const stars = await response.json();
+  if (!Array.isArray(stars)) throw new Error("Star catalog response is not an array");
   const catalog = [];
   for (let i = 0; i < stars.length; i++) {
     const s = stars[i];
@@ -268,40 +254,8 @@ function loadEarthTexture() {
   img.onerror = () => setEarthTexture(null);
 }
 
-// src/weather.js
-function buildWeatherGridCoordinates() {
-  const coords = [];
-  for (let lat = -80; lat <= 80; lat += 10) {
-    for (let lon = -180; lon < 180; lon += 10) {
-      coords.push({ lat, lon });
-    }
-  }
-  return coords;
-}
-async function loadLiveWeatherGrid() {
-  const coords = buildWeatherGridCoordinates();
-  const batchSize = 20;
-  const allData = [];
-  for (let i = 0; i < coords.length; i += batchSize) {
-    const batch = coords.slice(i, i + batchSize);
-    const params = batch.map((c) => `${c.lat},${c.lon}`).join(",");
-    const url = `${WEATHER_API_BASE}?latitude=${batch.map((c) => c.lat).join(",")}&longitude=${batch.map((c) => c.lon).join(",")}&current=temperature_2m,precipitation,cloud_cover,wind_speed_10m,wind_direction_10m,wind_u_component_10m,wind_v_component_10m&timezone=auto`;
-    try {
-      const resp = await fetch(url);
-      const json = await resp.json();
-      if (json.current_weather) {
-        allData.push(json.current_weather);
-      }
-    } catch (_) {
-    }
-  }
-  weatherOrbState.gridData = allData;
-  weatherOrbState.weatherSource = "Open-Meteo";
-  return allData;
-}
-
 // src/renderer.js
-function renderEarthTexture(ctx, cx, cy, r) {
+function renderEarthTexture(ctx, cx, cy, r, rotation = 0) {
   const img = earthTextureImage;
   if (!img) return;
   const iw = img.width;
@@ -310,11 +264,13 @@ function renderEarthTexture(ctx, cx, cy, r) {
   const drawH = 2 * r;
   const ox = cx - drawW / 2;
   const oy = cy - drawH / 2;
+  const shift = (rotation / (Math.PI * 2) % 1 + 1) % 1 * drawW;
   ctx.save();
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.clip();
-  ctx.drawImage(img, ox, oy, drawW, drawH);
+  ctx.drawImage(img, ox - shift, oy, drawW, drawH);
+  ctx.drawImage(img, ox - shift + drawW, oy, drawW, drawH);
   ctx.restore();
 }
 function drawFallbackSphere(ctx, cx, cy, r) {
@@ -338,7 +294,7 @@ function drawWeatherOrbFrame(ctx, canvas, timeMs) {
   ctx.fillRect(0, 0, width, height);
   drawFallbackSphere(ctx, centerX, centerY, radius);
   void globeRotY;
-  renderEarthTexture(ctx, centerX, centerY, radius);
+  renderEarthTexture(ctx, centerX, centerY, radius, globeRotY);
 }
 
 // src/interaction.js
@@ -348,8 +304,74 @@ function setupGlobeInteraction(canvas, opts = {}) {
   setGlobeRotX(0);
   setGlobeZoom(1);
   canvas.style.touchAction = "none";
-  canvas.style.cursor = "default";
+  canvas.style.cursor = "grab";
+  const clampPitch = (value) => Math.max(-Math.PI * 0.48, Math.min(Math.PI * 0.48, value));
+  const clampZoom = (value) => Math.max(0.5, Math.min(2.5, value));
+  const onPointerDown = (event) => {
+    if (event.button !== void 0 && event.button !== 0) return;
+    globeDrag.active = true;
+    globeDrag.pointerId = event.pointerId;
+    globeDrag.startX = event.clientX;
+    globeDrag.startY = event.clientY;
+    globeDrag.startRotY = globeRotY;
+    globeDrag.startRotX = globeRotX;
+    canvas.style.cursor = "grabbing";
+    canvas.focus({ preventScroll: true });
+    try {
+      canvas.setPointerCapture(event.pointerId);
+    } catch {
+    }
+  };
+  const onPointerMove = (event) => {
+    if (!globeDrag.active || globeDrag.pointerId != null && event.pointerId !== globeDrag.pointerId) return;
+    const rect = canvas.getBoundingClientRect();
+    const scale = Math.max(1, Math.min(rect.width, rect.height));
+    setGlobeRotY(globeDrag.startRotY + (event.clientX - globeDrag.startX) / scale * Math.PI * 2);
+    setGlobeRotX(clampPitch(globeDrag.startRotX - (event.clientY - globeDrag.startY) / scale * Math.PI));
+  };
+  const onPointerUp = (event) => {
+    if (globeDrag.pointerId != null && event.pointerId !== globeDrag.pointerId) return;
+    globeDrag.active = false;
+    globeDrag.pointerId = null;
+    canvas.style.cursor = "grab";
+    try {
+      canvas.releasePointerCapture(event.pointerId);
+    } catch {
+    }
+  };
+  const onWheel = (event) => {
+    event.preventDefault();
+    setGlobeZoom(clampZoom(globeZoom * Math.exp(-event.deltaY * 12e-4)));
+  };
+  const onKeyDown = (event) => {
+    const step = Math.PI / 18;
+    let handled = true;
+    if (event.key === "ArrowLeft") setGlobeRotY(globeRotY - step);
+    else if (event.key === "ArrowRight") setGlobeRotY(globeRotY + step);
+    else if (event.key === "ArrowUp") setGlobeRotX(clampPitch(globeRotX + step));
+    else if (event.key === "ArrowDown") setGlobeRotX(clampPitch(globeRotX - step));
+    else if (event.key === "+" || event.key === "=") setGlobeZoom(clampZoom(globeZoom * 1.12));
+    else if (event.key === "-" || event.key === "_") setGlobeZoom(clampZoom(globeZoom / 1.12));
+    else if (event.key === "Home") {
+      setGlobeRotY(0);
+      setGlobeRotX(0);
+      setGlobeZoom(1);
+    } else handled = false;
+    if (handled) event.preventDefault();
+  };
+  canvas.addEventListener("pointerdown", onPointerDown);
+  canvas.addEventListener("pointermove", onPointerMove);
+  canvas.addEventListener("pointerup", onPointerUp);
+  canvas.addEventListener("pointercancel", onPointerUp);
+  canvas.addEventListener("wheel", onWheel, { passive: false });
+  canvas.addEventListener("keydown", onKeyDown);
   return () => {
+    canvas.removeEventListener("pointerdown", onPointerDown);
+    canvas.removeEventListener("pointermove", onPointerMove);
+    canvas.removeEventListener("pointerup", onPointerUp);
+    canvas.removeEventListener("pointercancel", onPointerUp);
+    canvas.removeEventListener("wheel", onWheel);
+    canvas.removeEventListener("keydown", onKeyDown);
   };
 }
 
@@ -395,6 +417,9 @@ function mount(selector, options = {}) {
   globeCanvas.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;z-index:1;";
   globeCanvas.width = 1;
   globeCanvas.height = 1;
+  globeCanvas.tabIndex = 0;
+  globeCanvas.setAttribute("role", "application");
+  globeCanvas.setAttribute("aria-label", "Interactive Earth globe. Drag to rotate, use the mouse wheel or plus and minus keys to zoom, and arrow keys to rotate.");
   const wrapper = document.createElement("div");
   wrapper.className = "earth-globe-container";
   wrapper.style.cssText = `position:relative;width:${opts.width};height:${opts.height}px;overflow:hidden;background:${opts.background};border-radius:8px;`;
@@ -404,13 +429,14 @@ function mount(selector, options = {}) {
   const globeCtx = globeCanvas.getContext("2d");
   const starfieldCtx = starfieldCanvas.getContext("2d");
   loadEarthTexture();
-  if (opts.weather) {
-    loadLiveWeatherGrid().catch(() => {
-    });
-  }
   (async () => {
-    const catalog = await loadStarCatalog();
-    setStarCatalog(catalog);
+    try {
+      const catalog = await loadStarCatalog(opts.starsUrl);
+      setStarCatalog(catalog);
+    } catch (error) {
+      console.warn("Could not load star catalog; continuing without catalog stars.", error);
+      setStarCatalog([]);
+    }
   })();
   let disposeInteraction = null;
   if (opts.drag) {
@@ -429,8 +455,15 @@ function mount(selector, options = {}) {
   onResize();
   window.addEventListener("resize", onResize);
   let running = true;
+  const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
+  let lastRenderMs = Number.NEGATIVE_INFINITY;
   const render = (timestamp) => {
     if (!running) return;
+    if (reducedMotion && timestamp - lastRenderMs < 250) {
+      requestAnimationFrame(render);
+      return;
+    }
+    lastRenderMs = timestamp;
     refreshBodies();
     if (opts.stars) {
       renderStarfield(starfieldCtx, starfieldCanvas, timestamp, {

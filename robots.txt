@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://ancientpagoda-rgb.github.io/world/sitemap.xml

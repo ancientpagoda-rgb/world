@@ -129,14 +129,14 @@
   window.toIpaDisplay = toIpaDisplay;
 
   const baseHydrateNewsItem = hydrateNewsItem;
-  hydrateNewsItem = async function ipaHydrateNewsItem(row, originalText, language = "") {
+  hydrateNewsItem = async function ipaHydrateNewsItem(row, originalText, language = "", preparedEnglish = "") {
     const phoneticsEl = row.querySelector(".news-da");
     const englishEl = row.querySelector(".news-en");
-    if (!phoneticsEl || !englishEl) return baseHydrateNewsItem(row, originalText, language);
+    if (!phoneticsEl || !englishEl) return baseHydrateNewsItem(row, originalText, language, preparedEnglish);
 
     const [ipaText, englishText] = await Promise.all([
       toIpaDisplay(originalText, language),
-      toEnglishDisplay(originalText, language),
+      preparedEnglish ? Promise.resolve(preparedEnglish) : toEnglishDisplay(originalText, language),
     ]);
 
     setColorCodedSegments(phoneticsEl, ipaText || originalText, "translation", "syllable");

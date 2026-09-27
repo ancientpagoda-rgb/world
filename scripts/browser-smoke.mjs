@@ -59,8 +59,9 @@ async function startStaticServer() {
   const server = createServer(async (req, res) => {
     try {
       const requestedUrl = new URL(req.url || "/", "http://127.0.0.1");
-      const pathname = requestedUrl.pathname === "/" ? "/index.html" : requestedUrl.pathname;
-      const filePath = normalize(join(root, decodeURIComponent(pathname)));
+      const decodedPath = decodeURIComponent(requestedUrl.pathname);
+      const pathname = decodedPath.endsWith("/") ? `${decodedPath}index.html` : decodedPath;
+      const filePath = normalize(join(root, pathname));
       if (filePath !== root && !filePath.startsWith(root + sep)) { res.writeHead(403); res.end("Forbidden"); return; }
       const fileStat = await stat(filePath);
       if (!fileStat.isFile()) { res.writeHead(404); res.end("Not found"); return; }
@@ -134,6 +135,24 @@ try {
   const firstRowText = await page.evaluate(() => document.querySelector("#country-list .country-row")?.textContent || "");
   if (!/India/i.test(firstRowText)) errors.push(`First country row should begin with India, got: ${firstRowText.slice(0, 120)}`);
 
+  const interfaceProbe = await page.evaluate(() => ({
+    heading: document.querySelector("h1")?.textContent?.trim() || "",
+    filter: Boolean(document.querySelector("#country-filter")),
+    jumpOptions: document.querySelector("#country-jump")?.options?.length || 0,
+    articles: document.querySelectorAll("#country-list article").length,
+    headlineLinks: document.querySelectorAll("#country-list a.news-original[href]").length,
+    showMore: Boolean(document.querySelector("#country-list .show-more-button")),
+  }));
+  if (interfaceProbe.heading !== "World") errors.push(`Main heading is missing or wrong: ${JSON.stringify(interfaceProbe)}`);
+  if (!interfaceProbe.filter || interfaceProbe.jumpOptions < 200) errors.push(`Country navigation controls are incomplete: ${JSON.stringify(interfaceProbe)}`);
+  if (interfaceProbe.articles !== 24 || !interfaceProbe.showMore) errors.push(`Progressive country rendering is not active: ${JSON.stringify(interfaceProbe)}`);
+  if (interfaceProbe.headlineLinks < 20) errors.push(`Headline links are missing: ${JSON.stringify(interfaceProbe)}`);
+
+  await page.locator("#country-filter").fill("Japan");
+  await page.waitForFunction(() => document.querySelectorAll("#country-list article").length === 1 && /Japan/i.test(document.querySelector("#country-list")?.textContent || ""));
+  await page.locator("#country-filter").fill("");
+  await page.waitForFunction(() => document.querySelectorAll("#country-list article").length === 24);
+
   const translationProbe = await page.evaluate(async () => ({
     english: await window.toEnglishDisplay("Hello world", "en"),
     ipa: await window.toIpaDisplay("the quick brown fox", "en"),
@@ -200,6 +219,38 @@ try {
   await page.waitForFunction(() => document.body.classList.contains("debug-mode"), { timeout: 5000 });
   const buildTagVisible = await page.evaluate(() => { const tag = document.querySelector("#build-tag"); return Boolean(tag && getComputedStyle(tag).display !== "none"); });
   if (!buildTagVisible) errors.push("Build tag should be visible when ?debug=1 is present.");
+
+  await page.goto(new URL("widget/demo/", url).toString(), { waitUntil: "domcontentloaded", timeout: 20000 });
+  await page.waitForFunction(() => document.querySelectorAll("canvas").length === 6, { timeout: 10000 });
+  await page.waitForTimeout(750);
+  const widgetProbe = await page.evaluate(() => ({
+    canvases: document.querySelectorAll("canvas").length,
+    focusableGlobes: document.querySelectorAll('canvas[role="application"][tabindex="0"]').length,
+    zeroWidth: Array.from(document.querySelectorAll("canvas")).filter((canvas) => canvas.width === 0 || canvas.getBoundingClientRect().width === 0).length,
+  }));
+  if (widgetProbe.canvases !== 6 || widgetProbe.focusableGlobes !== 3 || widgetProbe.zeroWidth) errors.push(`Widget demo is incomplete: ${JSON.stringify(widgetProbe)}`);
+
+  await page.goto(new URL("countries/", url).toString(), { waitUntil: "domcontentloaded", timeout: 20000 });
+  await page.waitForFunction(() => document.querySelectorAll("#country-list article").length === 48, { timeout: 15000 });
+  const countriesProbe = await page.evaluate(() => ({
+    heading: document.querySelector("h1")?.textContent?.trim() || "",
+    globe: Boolean(document.querySelector('canvas[role="application"]')),
+    articles: document.querySelectorAll("#country-list article").length,
+    links: document.querySelectorAll("#country-list .country-news a[href]").length,
+    showMore: Boolean(document.querySelector("#country-list .country-list-footer button")),
+  }));
+  if (countriesProbe.heading !== "Country briefings" || !countriesProbe.globe || countriesProbe.articles !== 48 || countriesProbe.links < 40 || !countriesProbe.showMore) errors.push(`Countries route is incomplete: ${JSON.stringify(countriesProbe)}`);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20000 });
+  await page.waitForFunction(() => document.querySelectorAll("#country-list article").length === 24, { timeout: 15000 });
+  const mobileProbe = await page.evaluate(() => ({
+    articles: document.querySelectorAll("#country-list article").length,
+    filterVisible: Boolean(document.querySelector("#country-filter")?.getClientRects().length),
+    jumpVisible: Boolean(document.querySelector("#country-jump")?.getClientRects().length),
+    horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  }));
+  if (mobileProbe.articles !== 24 || !mobileProbe.filterVisible || !mobileProbe.jumpVisible || mobileProbe.horizontalOverflow > 1) errors.push(`Mobile layout regression: ${JSON.stringify(mobileProbe)}`);
 } finally {
   await browser.close();
   if (server) await new Promise((resolveClose) => server.close(resolveClose));
@@ -211,4 +262,4 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log("Browser smoke test passed: language-aware IPA, coordinated Original/IPA word colors, plain English, legend, and globe loaded without JS errors.");
+console.log("Browser smoke test passed: desktop/mobile navigation, progressive rendering, language-aware IPA, coordinated Original/IPA word colors, plain English, legend, and globe routes loaded without JS errors.");
