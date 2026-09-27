@@ -457,6 +457,10 @@ main {
   color: rgba(237, 246, 255, 0.92);
 }
 
+.news-source {
+  min-width: 0;
+}
+
 .syllable,
 .translation,
 .word {
@@ -485,6 +489,17 @@ main {
 .news-original {
   font-size: 1.1rem;
   line-height: 1.35;
+}
+
+.headline-timestamp {
+  display: block;
+  margin-top: 6px;
+  color: rgba(149, 173, 188, 0.86);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.68rem;
+  font-style: normal;
+  letter-spacing: 0.03em;
+  line-height: 1.25;
 }
 
 .news-da {

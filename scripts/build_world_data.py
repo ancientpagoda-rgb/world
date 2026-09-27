@@ -10,6 +10,8 @@ import tarfile
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+from datetime import timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 
@@ -415,7 +417,19 @@ def headline_matches_place(title: str, iso2: str, aliases: list[str]) -> bool:
     return True
 
 
-def fetch_top_headline(name: str, iso2: str, language: str) -> tuple[str | None, str | None, str]:
+def normalize_pub_date(value: str | None) -> str | None:
+    if not value:
+        return None
+    try:
+        parsed = parsedate_to_datetime(value)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def fetch_top_headline(name: str, iso2: str, language: str) -> tuple[str | None, str | None, str | None, str]:
     aliases = country_aliases(name, iso2)
     language_hint = f"{language}-{iso2}"
 
@@ -442,11 +456,15 @@ def fetch_top_headline(name: str, iso2: str, language: str) -> tuple[str | None,
                     link = (item.findtext("link") or "").strip()
                     if not link.startswith("https://"):
                         link = None
-                    return title, link, language
+                    published_at = normalize_pub_date(
+                        item.findtext("pubDate")
+                        or item.findtext("{http://purl.org/dc/elements/1.1/}date")
+                    )
+                    return title, link, published_at, language
         except Exception:
             continue
 
-    return None, None, language
+    return None, None, None, language
 
 
 def fetch_wikipedia_summary(name: str) -> str | None:
@@ -553,7 +571,7 @@ def main():
             country["nativeLanguage"],
             language_name_to_code,
         )
-        headline, headline_url, headline_language = fetch_top_headline(country["name"], country["iso2"], native_language)
+        headline, headline_url, headline_published_at, headline_language = fetch_top_headline(country["name"], country["iso2"], native_language)
         # English headlines are filled by the offline Argos/NLLB stage after
         # this data build. Keep this builder free of hosted translation calls.
         english_headline = None
@@ -571,6 +589,7 @@ def main():
                 "language": headline_language,
                 "headline": headline,
                 "headlineUrl": headline_url,
+                "headlinePublishedAt": headline_published_at,
                 "englishHeadline": english_headline or ("English translation unavailable" if headline else None),
                 "description": description,
             }

@@ -141,12 +141,14 @@ try {
     jumpOptions: document.querySelector("#country-jump")?.options?.length || 0,
     articles: document.querySelectorAll("#country-list article").length,
     headlineLinks: document.querySelectorAll("#country-list a.news-original[href]").length,
+    headlineTimestamps: document.querySelectorAll("#country-list time.headline-timestamp").length,
     showMore: Boolean(document.querySelector("#country-list .show-more-button")),
   }));
   if (interfaceProbe.heading !== "World") errors.push(`Main heading is missing or wrong: ${JSON.stringify(interfaceProbe)}`);
   if (!interfaceProbe.filter || interfaceProbe.jumpOptions < 200) errors.push(`Country navigation controls are incomplete: ${JSON.stringify(interfaceProbe)}`);
   if (interfaceProbe.articles !== 24 || !interfaceProbe.showMore) errors.push(`Progressive country rendering is not active: ${JSON.stringify(interfaceProbe)}`);
   if (interfaceProbe.headlineLinks < 20) errors.push(`Headline links are missing: ${JSON.stringify(interfaceProbe)}`);
+  if (interfaceProbe.headlineTimestamps < 20) errors.push(`Headline timestamps are missing: ${JSON.stringify(interfaceProbe)}`);
 
   await page.locator("#country-filter").fill("Japan");
   await page.waitForFunction(() => document.querySelectorAll("#country-list article").length === 1 && /Japan/i.test(document.querySelector("#country-list")?.textContent || ""));

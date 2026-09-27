@@ -32,7 +32,7 @@ for (const token of [
   "country-filter", "country-jump", "country-summary", "startWorldApp",
   "./app.js", "./translation-runtime-fix.js", "./translation-runtime-finalize.js", "./syllable-color-fix.js", "./ipa-phonetics.js", "./word-pair-alignment.js", "./globe-runtime-fix.js", "window.initializeWeatherOrb()",
 ]) if (!index.includes(token)) failures.push(`index.html is missing ${token}`);
-for (const token of [".da-legend", ".da-sound-grid", ".da-sound", ".da-legend-summary-note"]) if (!styles.includes(token)) failures.push(`styles.css is missing ${token}`);
+for (const token of [".da-legend", ".da-sound-grid", ".da-sound", ".da-legend-summary-note", ".headline-timestamp"]) if (!styles.includes(token)) failures.push(`styles.css is missing ${token}`);
 for (const token of [".country-controls", ".headline-link", ".show-more-button"]) if (!styles.includes(token)) failures.push(`styles.css is missing ${token}`);
 
 if (failures.length) {

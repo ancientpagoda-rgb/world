@@ -2356,6 +2356,17 @@ const NEWS_SEGMENT_COLORS = [
   "200 214 229", // silver
 ];
 
+const HEADLINE_TIME_FORMATTER = new Intl.DateTimeFormat(undefined, {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
+function formatHeadlineTimestamp(value) {
+  const date = new Date(value || "");
+  if (!Number.isFinite(date.getTime())) return "";
+  return HEADLINE_TIME_FORMATTER.format(date);
+}
+
 function hashSegmentText(text, mode = "word") {
   let hash = 2166136261;
   const input = `${mode}::${String(text || "").normalize("NFC")}`;
@@ -2387,6 +2398,8 @@ function setColorCodedSegments(target, text, className, mode = "word") {
 function renderNewsItem(item) {
   const row = document.createElement("li");
   row.className = "news-row";
+  const source = document.createElement("div");
+  source.className = "news-source";
 
   const original = item.url ? document.createElement("a") : document.createElement("div");
   original.className = "news-original";
@@ -2410,10 +2423,20 @@ function renderNewsItem(item) {
 
   // Color-code the original text by word so the spans track word boundaries.
   setColorCodedSegments(original, originalText, "word", "word");
+  source.appendChild(original);
+  const publishedLabel = formatHeadlineTimestamp(item.headlinePublishedAt);
+  if (publishedLabel) {
+    const published = document.createElement("time");
+    published.className = "headline-timestamp";
+    published.dateTime = item.headlinePublishedAt;
+    published.title = "Source publication time";
+    published.textContent = `Published ${publishedLabel}`;
+    source.appendChild(published);
+  }
   setColorCodedSegments(da, daText, "translation", "syllable");
   setColorCodedSegments(english, englishText, "translation", "word");
 
-  row.append(original, da, english);
+  row.append(source, da, english);
   return row;
 }
 
@@ -2533,6 +2556,7 @@ async function renderCountries(countries) {
         : ENGLISH_TRANSLATION_UNAVAILABLE);
     const row = renderNewsItem({
       headline: headlineText,
+      headlinePublishedAt: item.headlinePublishedAt,
       language: item.language || "",
       english: preparedEnglish,
       ...headlineLink,
