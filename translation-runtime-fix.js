@@ -174,29 +174,6 @@
     }
   }
 
-  async function requestEnglishTranslation(sourceText, sourceLanguage) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TRANSLATION_TIMEOUT_MS);
-    try {
-      const url = new URL("https://translate.googleapis.com/translate_a/single");
-      url.searchParams.set("client", "gtx");
-      url.searchParams.set("sl", sourceLanguage || "auto");
-      url.searchParams.set("tl", "en");
-      url.searchParams.set("dt", "t");
-      url.searchParams.set("q", sourceText);
-      const response = await fetch(url.toString(), { signal: controller.signal, cache: "no-store" });
-      if (!response.ok) throw new Error(`translate request failed: ${response.status}`);
-      const data = await response.json();
-      const translated = Array.isArray(data?.[0])
-        ? data[0].map((part) => (Array.isArray(part) ? String(part[0] || "") : "")).join("").trim()
-        : "";
-      if (!translated) throw new Error("empty translation response");
-      return translated;
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
   async function upgradedEnglishDisplay(input = "", language = "") {
     const text = String(input || "").trim();
     if (!text) return "";
@@ -215,25 +192,13 @@
       return alreadyEnglish;
     }
 
-    const sourceLanguage = effectiveSourceLanguage(sourceText, language);
-    try {
-      let translated;
-      try {
-        translated = await withTranslationSlot(() => requestEnglishTranslation(sourceText, sourceLanguage));
-      } catch (firstError) {
-        if (sourceLanguage === "auto") throw firstError;
-        translated = await withTranslationSlot(() => requestEnglishTranslation(sourceText, "auto"));
-      }
-      const merged = `${translated}${suffix}`.trim();
-      englishTranslationCache.set(cacheKey, merged);
-      translationSuccesses += 1;
-      return merged;
-    } catch (error) {
-      translationFailures += 1;
-      console.warn("English translation unavailable for this headline:", error);
-      // Do not cache failures: transient CORS/rate-limit/network failures should recover on rerender/reload.
-      return ENGLISH_TRANSLATION_UNAVAILABLE;
-    }
+    // English translations are generated offline during the asset refresh.
+    // Keep this runtime fallback local so a static page never creates a
+    // browser-side translation request storm.
+    translationFailures += 1;
+    const fallback = `${ENGLISH_TRANSLATION_UNAVAILABLE}${suffix}`.trim();
+    englishTranslationCache.set(cacheKey, fallback);
+    return fallback;
   }
 
   async function upgradedDaDisplay(input = "", language = "") {

@@ -774,33 +774,8 @@ async function toEnglishDisplay(input = "", language = "") {
     return alreadyEnglish;
   }
 
-  try {
-    const url = new URL("https://translate.googleapis.com/translate_a/single");
-    url.searchParams.set("client", "gtx");
-    url.searchParams.set("sl", "auto");
-    url.searchParams.set("tl", "en");
-    url.searchParams.set("dt", "t");
-    url.searchParams.set("q", sourceText);
-
-    const data = await fetch(url.toString()).then((res) => {
-      if (!res.ok) throw new Error(`translate request failed: ${res.status}`);
-      return res.json();
-    });
-    const translated = Array.isArray(data?.[0])
-      ? data[0]
-          .map((part) => (Array.isArray(part) ? String(part[0] || "") : ""))
-          .join("")
-          .trim()
-      : "";
-    if (translated) {
-      const merged = `${translated}${suffix}`.trim();
-      englishTranslationCache.set(cacheKey, merged);
-      return merged;
-    }
-  } catch (err) {
-    console.warn("English translation fallback:", err);
-  }
-
+  // English translations are generated offline during the asset refresh.
+  // Never make a browser request to an undocumented public translator.
   const fallback = `${ENGLISH_TRANSLATION_UNAVAILABLE}${suffix}`.trim();
   englishTranslationCache.set(cacheKey, fallback);
   return fallback;

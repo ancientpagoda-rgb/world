@@ -176,35 +176,6 @@ def fetch_top_headline(name: str, iso2: str, language: str) -> tuple[str | None,
     return None, None, language
 
 
-def translate_to_english(text: str | None, language: str) -> str | None:
-    if not text:
-        return None
-    if language.lower().split("-", 1)[0] == "en":
-        return text
-    params = urllib.parse.urlencode({
-        "client": "gtx",
-        "sl": language or "auto",
-        "tl": "en",
-        "dt": "t",
-        "q": text,
-    })
-    request = urllib.request.Request(
-        f"https://translate.googleapis.com/translate_a/single?{params}",
-        headers=HEADERS,
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=20) as response:
-            payload = json.load(response)
-        translated = "".join(
-            str(part[0] or "")
-            for part in (payload[0] if isinstance(payload, list) and payload else [])
-            if isinstance(part, list) and part
-        ).strip()
-        return translated or None
-    except Exception:
-        return None
-
-
 def main() -> int:
     rows = json.loads(DATA_PATH.read_text(encoding="utf-8"))
     if not isinstance(rows, list):
@@ -223,7 +194,9 @@ def main() -> int:
         previous_headline = row.get("headline")
         previous_english = row.get("englishHeadline")
         headline, headline_url, headline_language = fetch_top_headline(name, iso2, native_language)
-        english_headline = translate_to_english(headline, headline_language)
+        # English headlines are filled by the offline Argos/NLLB stage after
+        # this feed refresh. Never call an undocumented hosted translator here.
+        english_headline = None
         if not english_headline and headline == previous_headline and previous_english:
             english_headline = previous_english
         row["headline"] = headline

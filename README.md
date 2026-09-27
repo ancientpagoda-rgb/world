@@ -25,4 +25,4 @@ npm run check:static
 npm run test:smoke
 ```
 
-Generated country, weather, and Earth-image assets are refreshed by GitHub Actions. The main application is deployed through GitHub Pages.
+Generated country, weather, and Earth-image assets are refreshed by GitHub Actions. Headline English values are generated offline during the refresh: the cached NLLB-200 model is tried first, followed by Argos Translate for languages NLLB cannot cover or failed batches. The browser does not call a translation service. The main application is deployed through GitHub Pages.
