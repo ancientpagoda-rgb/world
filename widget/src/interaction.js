@@ -1,15 +1,13 @@
-import { globeDrag, setGlobeRotY, setGlobeRotX, globeRotY, globeRotX, setGlobeZoom, globeZoom } from "./state.js";
+import { globeDrag, setGlobeRotY, setGlobeRotX, globeRotY, globeRotX } from "./state.js";
 
 export function setupGlobeInteraction(canvas, opts = {}) {
   globeDrag.active = false;
   setGlobeRotY(0);
   setGlobeRotX(0);
-  setGlobeZoom(1);
-  canvas.style.touchAction = "none";
+  canvas.style.touchAction = "pan-y";
   canvas.style.cursor = "grab";
 
   const clampPitch = (value) => Math.max(-Math.PI * 0.48, Math.min(Math.PI * 0.48, value));
-  const clampZoom = (value) => Math.max(0.5, Math.min(2.5, value));
 
   const onPointerDown = (event) => {
     if (event.button !== undefined && event.button !== 0) return;
@@ -40,11 +38,6 @@ export function setupGlobeInteraction(canvas, opts = {}) {
     try { canvas.releasePointerCapture(event.pointerId); } catch {}
   };
 
-  const onWheel = (event) => {
-    event.preventDefault();
-    setGlobeZoom(clampZoom(globeZoom * Math.exp(-event.deltaY * 0.0012)));
-  };
-
   const onKeyDown = (event) => {
     const step = Math.PI / 18;
     let handled = true;
@@ -52,9 +45,7 @@ export function setupGlobeInteraction(canvas, opts = {}) {
     else if (event.key === "ArrowRight") setGlobeRotY(globeRotY + step);
     else if (event.key === "ArrowUp") setGlobeRotX(clampPitch(globeRotX + step));
     else if (event.key === "ArrowDown") setGlobeRotX(clampPitch(globeRotX - step));
-    else if (event.key === "+" || event.key === "=") setGlobeZoom(clampZoom(globeZoom * 1.12));
-    else if (event.key === "-" || event.key === "_") setGlobeZoom(clampZoom(globeZoom / 1.12));
-    else if (event.key === "Home") { setGlobeRotY(0); setGlobeRotX(0); setGlobeZoom(1); }
+    else if (event.key === "Home") { setGlobeRotY(0); setGlobeRotX(0); }
     else handled = false;
     if (handled) event.preventDefault();
   };
@@ -63,7 +54,6 @@ export function setupGlobeInteraction(canvas, opts = {}) {
   canvas.addEventListener("pointermove", onPointerMove);
   canvas.addEventListener("pointerup", onPointerUp);
   canvas.addEventListener("pointercancel", onPointerUp);
-  canvas.addEventListener("wheel", onWheel, { passive: false });
   canvas.addEventListener("keydown", onKeyDown);
 
   return () => {
@@ -71,7 +61,6 @@ export function setupGlobeInteraction(canvas, opts = {}) {
     canvas.removeEventListener("pointermove", onPointerMove);
     canvas.removeEventListener("pointerup", onPointerUp);
     canvas.removeEventListener("pointercancel", onPointerUp);
-    canvas.removeEventListener("wheel", onWheel);
     canvas.removeEventListener("keydown", onKeyDown);
   };
 }

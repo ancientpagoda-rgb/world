@@ -14,9 +14,6 @@ function setGlobeRotY(v) {
 function setGlobeRotX(v) {
   globeRotX = v;
 }
-function setGlobeZoom(v) {
-  globeZoom = v;
-}
 var earthTextureImage = null;
 function setEarthTexture(img) {
   earthTextureImage = img;
@@ -156,7 +153,7 @@ async function loadStarCatalog(url = STARS_URL) {
   return catalog;
 }
 function renderStarfield(ctx, canvas, timeMs, options = {}) {
-  const dpr = window.devicePixelRatio || 1;
+  const dpr = Number.isFinite(options.renderDpr) ? options.renderDpr : Math.min(window.devicePixelRatio || 1, 0.65);
   const w = Math.round(options.width || window.innerWidth);
   const h = Math.round(options.height || window.innerHeight);
   const offsetX = options.offsetX || 0;
@@ -302,11 +299,9 @@ function setupGlobeInteraction(canvas, opts = {}) {
   globeDrag.active = false;
   setGlobeRotY(0);
   setGlobeRotX(0);
-  setGlobeZoom(1);
-  canvas.style.touchAction = "none";
+  canvas.style.touchAction = "pan-y";
   canvas.style.cursor = "grab";
   const clampPitch = (value) => Math.max(-Math.PI * 0.48, Math.min(Math.PI * 0.48, value));
-  const clampZoom = (value) => Math.max(0.5, Math.min(2.5, value));
   const onPointerDown = (event) => {
     if (event.button !== void 0 && event.button !== 0) return;
     globeDrag.active = true;
@@ -339,10 +334,6 @@ function setupGlobeInteraction(canvas, opts = {}) {
     } catch {
     }
   };
-  const onWheel = (event) => {
-    event.preventDefault();
-    setGlobeZoom(clampZoom(globeZoom * Math.exp(-event.deltaY * 12e-4)));
-  };
   const onKeyDown = (event) => {
     const step = Math.PI / 18;
     let handled = true;
@@ -350,12 +341,9 @@ function setupGlobeInteraction(canvas, opts = {}) {
     else if (event.key === "ArrowRight") setGlobeRotY(globeRotY + step);
     else if (event.key === "ArrowUp") setGlobeRotX(clampPitch(globeRotX + step));
     else if (event.key === "ArrowDown") setGlobeRotX(clampPitch(globeRotX - step));
-    else if (event.key === "+" || event.key === "=") setGlobeZoom(clampZoom(globeZoom * 1.12));
-    else if (event.key === "-" || event.key === "_") setGlobeZoom(clampZoom(globeZoom / 1.12));
     else if (event.key === "Home") {
       setGlobeRotY(0);
       setGlobeRotX(0);
-      setGlobeZoom(1);
     } else handled = false;
     if (handled) event.preventDefault();
   };
@@ -363,20 +351,20 @@ function setupGlobeInteraction(canvas, opts = {}) {
   canvas.addEventListener("pointermove", onPointerMove);
   canvas.addEventListener("pointerup", onPointerUp);
   canvas.addEventListener("pointercancel", onPointerUp);
-  canvas.addEventListener("wheel", onWheel, { passive: false });
   canvas.addEventListener("keydown", onKeyDown);
   return () => {
     canvas.removeEventListener("pointerdown", onPointerDown);
     canvas.removeEventListener("pointermove", onPointerMove);
     canvas.removeEventListener("pointerup", onPointerUp);
     canvas.removeEventListener("pointercancel", onPointerUp);
-    canvas.removeEventListener("wheel", onWheel);
     canvas.removeEventListener("keydown", onKeyDown);
   };
 }
 
 // src/index.js
 var instances = /* @__PURE__ */ new Map();
+var WIDGET_RENDER_SCALE = 0.62;
+var WIDGET_FPS = 12;
 function refreshBodies() {
   const now = Date.now();
   if (now - getCelestialEpoch() > 6e5) {
@@ -409,17 +397,17 @@ function mount(selector, options = {}) {
   container.innerHTML = "";
   const starfieldCanvas = document.createElement("canvas");
   starfieldCanvas.className = "earth-globe-starfield";
-  starfieldCanvas.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;";
+  starfieldCanvas.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;image-rendering:pixelated;";
   starfieldCanvas.width = 1;
   starfieldCanvas.height = 1;
   const globeCanvas = document.createElement("canvas");
   globeCanvas.className = "earth-globe-canvas";
-  globeCanvas.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;z-index:1;";
+  globeCanvas.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;z-index:1;image-rendering:pixelated;image-rendering:crisp-edges;";
   globeCanvas.width = 1;
   globeCanvas.height = 1;
   globeCanvas.tabIndex = 0;
   globeCanvas.setAttribute("role", "application");
-  globeCanvas.setAttribute("aria-label", "Interactive Earth globe. Drag to rotate, use the mouse wheel or plus and minus keys to zoom, and arrow keys to rotate.");
+  globeCanvas.setAttribute("aria-label", "Interactive Earth globe. Drag to rotate and use arrow keys to rotate.");
   const wrapper = document.createElement("div");
   wrapper.className = "earth-globe-container";
   wrapper.style.cssText = `position:relative;width:${opts.width};height:${opts.height}px;overflow:hidden;background:${opts.background};border-radius:8px;`;
@@ -444,9 +432,10 @@ function mount(selector, options = {}) {
   }
   const onResize = () => {
     const rect = wrapper.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, 1) * WIDGET_RENDER_SCALE;
     globeCanvas.width = Math.round(rect.width * dpr);
     globeCanvas.height = Math.round(rect.height * dpr);
+    globeCtx.imageSmoothingEnabled = false;
     if (opts.stars) {
       starfieldCanvas.width = Math.round(rect.width * dpr);
       starfieldCanvas.height = Math.round(rect.height * dpr);
@@ -456,11 +445,31 @@ function mount(selector, options = {}) {
   window.addEventListener("resize", onResize);
   let running = true;
   const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
+  const minFrameMs = reducedMotion ? 250 : 1e3 / WIDGET_FPS;
+  let pageVisible = document.visibilityState !== "hidden";
+  let globeVisible = true;
+  let frameTimer = 0;
+  let frameQueued = false;
   let lastRenderMs = Number.NEGATIVE_INFINITY;
-  const render = (timestamp) => {
-    if (!running) return;
-    if (reducedMotion && timestamp - lastRenderMs < 250) {
+  const canRender = () => running && pageVisible && globeVisible;
+  const cancelScheduledFrame = () => {
+    if (frameTimer) window.clearTimeout(frameTimer);
+    frameTimer = 0;
+    frameQueued = false;
+  };
+  const scheduleRender = (delay = 0) => {
+    if (!canRender() || frameQueued) return;
+    frameQueued = true;
+    frameTimer = window.setTimeout(() => {
+      frameTimer = 0;
       requestAnimationFrame(render);
+    }, Math.max(0, delay));
+  };
+  const render = (timestamp) => {
+    frameQueued = false;
+    if (!canRender()) return;
+    if (timestamp - lastRenderMs < minFrameMs) {
+      scheduleRender(minFrameMs - (timestamp - lastRenderMs));
       return;
     }
     lastRenderMs = timestamp;
@@ -468,14 +477,35 @@ function mount(selector, options = {}) {
     if (opts.stars) {
       renderStarfield(starfieldCtx, starfieldCanvas, timestamp, {
         width: wrapper.clientWidth,
-        height: wrapper.clientHeight
+        height: wrapper.clientHeight,
+        renderDpr: WIDGET_RENDER_SCALE
       });
     }
     globeCtx.clearRect(0, 0, globeCanvas.width, globeCanvas.height);
     drawWeatherOrbFrame(globeCtx, globeCanvas, timestamp);
-    requestAnimationFrame(render);
+    scheduleRender(minFrameMs);
   };
-  requestAnimationFrame(render);
+  const onVisibilityChange = () => {
+    pageVisible = document.visibilityState !== "hidden";
+    if (pageVisible) {
+      lastRenderMs = Number.NEGATIVE_INFINITY;
+      scheduleRender();
+    } else {
+      cancelScheduledFrame();
+    }
+  };
+  document.addEventListener("visibilitychange", onVisibilityChange);
+  const observer = "IntersectionObserver" in window ? new IntersectionObserver(([entry]) => {
+    globeVisible = entry.isIntersecting;
+    if (globeVisible) {
+      lastRenderMs = Number.NEGATIVE_INFINITY;
+      scheduleRender();
+    } else {
+      cancelScheduledFrame();
+    }
+  }, { threshold: 0.01 }) : null;
+  observer?.observe(wrapper);
+  scheduleRender();
   const instance = {
     selector,
     wrapper,
@@ -486,6 +516,9 @@ function mount(selector, options = {}) {
     onResize,
     destroy() {
       running = false;
+      cancelScheduledFrame();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      observer?.disconnect();
       if (disposeInteraction) disposeInteraction();
       window.removeEventListener("resize", onResize);
       wrapper.remove();

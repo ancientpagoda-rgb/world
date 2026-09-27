@@ -9,18 +9,20 @@
 }
 
 .world-visual-stage {
-  width: min(100%, 860px);
+  width: min(421px, 100%);
+  aspect-ratio: 1;
   margin: 0 auto 24px;
 }
 
 .weather-orb-canvas {
   display: block;
   width: 100%;
-  height: auto;
-  aspect-ratio: 1;
+  height: 100%;
   border-radius: 50%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
   cursor: grab;
-  touch-action: none;
+  touch-action: pan-y;
 }
 
 .weather-orb-canvas:active {

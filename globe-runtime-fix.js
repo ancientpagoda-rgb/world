@@ -3,7 +3,6 @@
   window.__worldGlobePatchInstalled = true;
 
   const clampPitch = (value) => Math.max(-Math.PI * 0.48, Math.min(Math.PI * 0.48, value));
-  const clampZoom = (value) => Math.max(0.5, Math.min(2.5, value));
 
   setupGlobeInteraction = function setupGlobeInteractionPatched(canvas) {
     globeDrag.active = false;
@@ -15,7 +14,7 @@
     canvas.setAttribute("role", "application");
     canvas.setAttribute(
       "aria-label",
-      "Interactive Earth globe. Drag to rotate, use the mouse wheel or plus and minus keys to zoom, and arrow keys to rotate.",
+      "Interactive Earth globe. Drag to rotate and use arrow keys to rotate.",
     );
 
     const onPointerDown = (event) => {
@@ -44,6 +43,7 @@
       const dy = event.clientY - globeDrag.startY;
       globeRotY = globeDrag.startRotY + (dx / scale) * Math.PI * 2;
       globeRotX = clampPitch(globeDrag.startRotX - (dy / scale) * Math.PI);
+      window.__worldRequestGlobeRender?.();
     };
 
     const onPointerUp = (event) => {
@@ -58,11 +58,6 @@
       }
     };
 
-    const onWheel = (event) => {
-      event.preventDefault();
-      globeZoom = clampZoom(globeZoom * Math.exp(-event.deltaY * 0.0012));
-    };
-
     const onKeyDown = (event) => {
       const rotationStep = Math.PI / 18;
       let handled = true;
@@ -70,22 +65,21 @@
       else if (event.key === "ArrowRight") globeRotY += rotationStep;
       else if (event.key === "ArrowUp") globeRotX = clampPitch(globeRotX + rotationStep);
       else if (event.key === "ArrowDown") globeRotX = clampPitch(globeRotX - rotationStep);
-      else if (event.key === "+" || event.key === "=") globeZoom = clampZoom(globeZoom * 1.12);
-      else if (event.key === "-" || event.key === "_") globeZoom = clampZoom(globeZoom / 1.12);
       else if (event.key === "Home") {
         globeRotY = 0;
         globeRotX = 0;
-        globeZoom = 1;
       } else handled = false;
 
-      if (handled) event.preventDefault();
+      if (handled) {
+        event.preventDefault();
+        window.__worldRequestGlobeRender?.();
+      }
     };
 
     canvas.addEventListener("pointerdown", onPointerDown);
     canvas.addEventListener("pointermove", onPointerMove);
     canvas.addEventListener("pointerup", onPointerUp);
     canvas.addEventListener("pointercancel", onPointerUp);
-    canvas.addEventListener("wheel", onWheel, { passive: false });
     canvas.addEventListener("keydown", onKeyDown);
 
     return () => {
@@ -93,7 +87,6 @@
       canvas.removeEventListener("pointermove", onPointerMove);
       canvas.removeEventListener("pointerup", onPointerUp);
       canvas.removeEventListener("pointercancel", onPointerUp);
-      canvas.removeEventListener("wheel", onWheel);
       canvas.removeEventListener("keydown", onKeyDown);
     };
   };
@@ -106,7 +99,7 @@
     for (let lat = -60; lat <= 60; lat += 30) {
       ctx.beginPath();
       let started = false;
-      for (let lon = -180; lon <= 180; lon += 4) {
+      for (let lon = -180; lon <= 180; lon += 8) {
         const point = latLonProjection(lat, lon, rotY, rotX);
         if (point.z <= 0) {
           started = false;
@@ -122,10 +115,10 @@
       ctx.stroke();
     }
 
-    for (let lon = -150; lon <= 180; lon += 30) {
+    for (let lon = -180; lon <= 180; lon += 45) {
       ctx.beginPath();
       let started = false;
-      for (let lat = -88; lat <= 88; lat += 3) {
+      for (let lat = -88; lat <= 88; lat += 6) {
         const point = latLonProjection(lat, lon, rotY, rotX);
         if (point.z <= 0) {
           started = false;

@@ -229,13 +229,19 @@ const TEMP_OVERLAY_ALPHA_RANGE = 0.16;
 const TEMP_RASTER_ALPHA_MUL = 0.45;
 const PRECIP_RASTER_ALPHA_MUL = 0.85;
 
-// Performance: cap internal resolution and cache expensive overlays.
-const MAX_CANVAS_DPR = 1.25;
-const WEATHER_OVERLAY_FPS = 6;
+// Performance: the globe is an ambient visual, so keep it deliberately lo-fi.
+// Rendering fewer pixels and fewer animation frames leaves the news UI responsive.
+const MAX_CANVAS_DPR = 1;
+const GLOBE_RENDER_SCALE = 0.62;
+const GLOBE_REFRESH_INTERVAL_MS = 60 * 1000;
+const WEATHER_OVERLAY_FPS = 4;
+const WEATHER_SAMPLE_STEP = 6;
+const WIND_PARTICLE_COUNT = 280;
 
 // Performance: starfield is full-screen, so keep it cheaper.
-const STARFIELD_MAX_DPR = 0.9;
-const STARFIELD_FPS = 20;
+const STARFIELD_MAX_DPR = 0.65;
+const STARFIELD_FPS = 8;
+const STARFIELD_MAX_STARS = 1800;
 
 // Performance: quantize rotation for expensive per-pixel projections.
 const TEXTURE_ROT_STEP = 0.03; // ~1.7 degrees
@@ -788,8 +794,11 @@ async function loadStarCatalog() {
   try {
     const res = await fetch(STARS_URL);
     const data = await res.json();
-    for (const s of data) {
-      if (s.m < -20) continue; // skip Sun
+    const visibleStars = data
+      .filter((s) => s && s.m >= -20)
+      .sort((a, b) => a.m - b.m)
+      .slice(0, STARFIELD_MAX_STARS);
+    for (const s of visibleStars) {
       STAR_CATALOG.push({
         ra: s.ra,
         dec: s.dec,
@@ -1389,6 +1398,17 @@ function simplifyRing(ring) {
   return simplified;
 }
 
+function simplifyGlobeRing(ring) {
+  if (!Array.isArray(ring) || ring.length < 3) return [];
+  const step = ring.length > 180 ? 8 : ring.length > 96 ? 5 : ring.length > 36 ? 3 : 1;
+  const simplified = [];
+  for (let index = 0; index < ring.length; index += step) simplified.push(ring[index]);
+  const last = ring[ring.length - 1];
+  const first = simplified[0];
+  if (simplified.length && (first[0] !== last[0] || first[1] !== last[1])) simplified.push(last);
+  return simplified;
+}
+
 function preprocessWorldGeometry(geojson) {
   if (!geojson?.features) return [];
 
@@ -1396,9 +1416,9 @@ function preprocessWorldGeometry(geojson) {
     .flatMap((feature) => {
       const geometry = feature?.geometry;
       if (!geometry) return [];
-      if (geometry.type === "Polygon") return [geometry.coordinates.map(simplifyRing)];
+      if (geometry.type === "Polygon") return [geometry.coordinates.map(simplifyGlobeRing)];
       if (geometry.type === "MultiPolygon") {
-        return geometry.coordinates.map((polygon) => polygon.map(simplifyRing));
+        return geometry.coordinates.map((polygon) => polygon.map(simplifyGlobeRing));
       }
       return [];
     })
@@ -1602,7 +1622,7 @@ function sampleWindUV(latDeg, lonDeg, timeMs) {
 
 const WIND_LAYERS = [
   // Snapshot mode (option 1): surface winds only.
-  { name: "surface", u: "windU", v: "windV", c: [160, 210, 255], a: 0.22, w: 0.55, count: 1100 },
+  { name: "surface", u: "windU", v: "windV", c: [160, 210, 255], a: 0.22, w: 0.55, count: WIND_PARTICLE_COUNT },
 ];
 
 const windLayerParticles = new Map();
@@ -1815,8 +1835,8 @@ function drawWeatherLayers(ctx, rotY, rotX, radius, centerX, centerY, timeMs) {
   }
 
   // Temperature overlay (semi-transparent gradient, always visible)
-  for (let lat = -76; lat <= 76; lat += 3) {
-    for (let lon = -180; lon < 180; lon += 3) {
+  for (let lat = -76; lat <= 76; lat += WEATHER_SAMPLE_STEP) {
+    for (let lon = -180; lon < 180; lon += WEATHER_SAMPLE_STEP) {
       const point = latLonProjection(lat, lon, rotY, rotX);
       if (point.z <= 0) continue;
       const value = sampleTemperature(lat, lon, timeMs);
@@ -1825,46 +1845,41 @@ function drawWeatherLayers(ctx, rotY, rotX, radius, centerX, centerY, timeMs) {
       const y = centerY - point.y * radius;
       const a = (TEMP_OVERLAY_ALPHA_BASE + value * TEMP_OVERLAY_ALPHA_RANGE) * LOFI_WEATHER_INTENSITY;
       ctx.fillStyle = rgba(getTemperatureColor(value), a);
-      ctx.beginPath();
-      ctx.arc(x, y, lerp(1.8, 4.6, point.z), 0, Math.PI * 2);
-      ctx.fill();
+      const size = Math.max(1, radius * WEATHER_SAMPLE_STEP * Math.PI / 180 * 0.72);
+      ctx.fillRect(x - size / 2, y - size / 2, size, size);
     }
   }
 
   // Precipitation overlay (radar-style, always visible)
-  for (let lat = -76; lat <= 76; lat += 3) {
-    for (let lon = -180; lon < 180; lon += 3) {
+  for (let lat = -76; lat <= 76; lat += WEATHER_SAMPLE_STEP) {
+    for (let lon = -180; lon < 180; lon += WEATHER_SAMPLE_STEP) {
       const point = latLonProjection(lat, lon, rotY, rotX);
       if (point.z <= 0) continue;
       let value = sampleRainfall(lat, lon, timeMs);
       if (value === null || value < 0.10) continue;
       const x = centerX + point.x * radius;
       const y = centerY - point.y * radius;
-      const size = lerp(2.2, 4.4, point.z);
+      const size = Math.max(1, radius * WEATHER_SAMPLE_STEP * Math.PI / 180 * (0.42 + point.z * 0.38));
       const radar = getRainRadarColor(value);
       if (!radar) continue;
       ctx.fillStyle = rgba(radar[0], radar[1]);
-      ctx.beginPath();
-      ctx.arc(x, y, size * 1.15, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.fillRect(x - size / 2, y - size / 2, size, size);
     }
   }
 
   // Cloud cover overlay (subtle, always visible)
-  for (let lat = -76; lat <= 76; lat += 3) {
-    for (let lon = -180; lon < 180; lon += 3) {
+  for (let lat = -76; lat <= 76; lat += WEATHER_SAMPLE_STEP) {
+    for (let lon = -180; lon < 180; lon += WEATHER_SAMPLE_STEP) {
       const point = latLonProjection(lat, lon, rotY, rotX);
       if (point.z <= 0) continue;
       const value = sampleClouds(lat, lon, timeMs);
       if (value === null || value < 0.26) continue;
       const x = centerX + point.x * radius;
       const y = centerY - point.y * radius;
-      const s = lerp(2.6, 6.4, point.z);
+      const s = Math.max(1, radius * WEATHER_SAMPLE_STEP * Math.PI / 180 * (0.56 + point.z * 0.58));
       // Light mist instead of dark blotches.
       ctx.fillStyle = `rgba(240, 246, 255, ${(0.016 * value) * LOFI_WEATHER_INTENSITY})`;
-      ctx.beginPath();
-      ctx.arc(x, y, s, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.fillRect(x - s / 2, y - s / 2, s, s);
     }
   }
 }
@@ -2126,14 +2141,16 @@ function initializeWeatherOrb() {
     return;
   }
 
-  // Render the orb at a capped DPR for performance.
+  // Render a small pixel-art buffer and let CSS scale it up. The globe is
+  // decorative context; the country briefings should own the frame budget.
   const resizeOrb = () => {
     const rect = canvas.getBoundingClientRect();
-    const dpr = Math.min(window.devicePixelRatio || 1, MAX_CANVAS_DPR);
+    const dpr = Math.min(window.devicePixelRatio || 1, MAX_CANVAS_DPR) * GLOBE_RENDER_SCALE;
     const w = Math.max(1, Math.round(rect.width * dpr));
     const h = Math.max(1, Math.round(rect.height * dpr));
     if (canvas.width !== w) canvas.width = w;
     if (canvas.height !== h) canvas.height = h;
+    ctx.imageSmoothingEnabled = false;
   };
   resizeOrb();
   window.addEventListener("resize", resizeOrb);
@@ -2143,11 +2160,31 @@ function initializeWeatherOrb() {
 
   setupGlobeInteraction(canvas);
 
-  const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
+  const minFrameMs = GLOBE_REFRESH_INTERVAL_MS;
+  let pageVisible = document.visibilityState !== "hidden";
+  let orbVisible = true;
+  let frameTimer = 0;
+  let frameQueued = false;
   let lastRenderMs = Number.NEGATIVE_INFINITY;
-  const render = (timestamp) => {
-    if (reducedMotion && timestamp - lastRenderMs < 250) {
+  const canRender = () => pageVisible && orbVisible;
+  const cancelScheduledFrame = () => {
+    if (frameTimer) window.clearTimeout(frameTimer);
+    frameTimer = 0;
+    frameQueued = false;
+  };
+  const scheduleRender = (delay = 0) => {
+    if (!canRender() || frameQueued) return;
+    frameQueued = true;
+    frameTimer = window.setTimeout(() => {
+      frameTimer = 0;
       window.requestAnimationFrame(render);
+    }, Math.max(0, delay));
+  };
+  const render = (timestamp) => {
+    frameQueued = false;
+    if (!canRender()) return;
+    if (timestamp - lastRenderMs < minFrameMs) {
+      scheduleRender(minFrameMs - (timestamp - lastRenderMs));
       return;
     }
     lastRenderMs = timestamp;
@@ -2161,10 +2198,38 @@ function initializeWeatherOrb() {
     } catch (err) {
       reportFatal(err);
     }
-    window.requestAnimationFrame(render);
+    scheduleRender(minFrameMs);
   };
 
-  window.requestAnimationFrame(render);
+  const onVisibilityChange = () => {
+    pageVisible = document.visibilityState !== "hidden";
+    if (pageVisible) {
+      lastRenderMs = Number.NEGATIVE_INFINITY;
+      scheduleRender();
+    } else {
+      cancelScheduledFrame();
+    }
+  };
+  document.addEventListener("visibilitychange", onVisibilityChange);
+
+  const observer = "IntersectionObserver" in window
+    ? new IntersectionObserver(([entry]) => {
+        orbVisible = entry.isIntersecting;
+        if (orbVisible) {
+          lastRenderMs = Number.NEGATIVE_INFINITY;
+          scheduleRender();
+        } else {
+          cancelScheduledFrame();
+        }
+      }, { threshold: 0.01 })
+    : null;
+  observer?.observe(canvas);
+
+  window.__worldRequestGlobeRender = () => {
+    lastRenderMs = Number.NEGATIVE_INFINITY;
+    scheduleRender();
+  };
+  scheduleRender();
 }
 
 function getCountryThumbnailDataURL(iso3, w, h) {

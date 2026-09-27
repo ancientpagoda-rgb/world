@@ -26,7 +26,9 @@ export async function loadStarCatalog(url = STARS_URL) {
 }
 
 export function renderStarfield(ctx, canvas, timeMs, options = {}) {
-  const dpr = window.devicePixelRatio || 1;
+  const dpr = Number.isFinite(options.renderDpr)
+    ? options.renderDpr
+    : Math.min(window.devicePixelRatio || 1, 0.65);
   const w = Math.round(options.width || window.innerWidth);
   const h = Math.round(options.height || window.innerHeight);
   const offsetX = options.offsetX || 0;
