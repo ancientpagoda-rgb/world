@@ -17,7 +17,7 @@ import json
 import os
 import re
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -152,6 +152,37 @@ def merge_translation(translated: str, source: str) -> str:
     return f"{str(translated or '').strip()}{suffix}".strip()
 
 
+def translation_quality_reason(translated: str, source: str) -> str | None:
+    """Return a reason to reject obviously malformed model output.
+
+    These checks are intentionally conservative: they catch runaway
+    repetition, extreme expansion, and dropped numbers without pretending to
+    assess semantic correctness.
+    """
+    candidate = str(translated or "").strip()
+    if not candidate or candidate == UNAVAILABLE:
+        return "empty"
+
+    source_body, _ = split_source_suffix(source)
+    candidate_body, _ = split_source_suffix(candidate)
+    if len(candidate_body) > max(320, len(source_body) * 6):
+        return "extreme-expansion"
+
+    compact = re.sub(r"[^\w]+", "", candidate_body.casefold(), flags=re.UNICODE)
+    if re.search(r"(.{4,80}?)(?:\1){2,}", compact):
+        return "repeated-fragment"
+
+    words = re.findall(r"[^\W\d_]+", candidate_body.casefold(), flags=re.UNICODE)
+    if len(words) >= 8 and max(Counter(words).values()) >= max(4, len(words) // 2):
+        return "repeated-word"
+
+    source_numbers = re.findall(r"\d+(?:[.,]\d+)?", source_body)
+    candidate_numbers = re.findall(r"\d+(?:[.,]\d+)?", candidate_body)
+    if any(number not in candidate_numbers for number in source_numbers):
+        return "dropped-number"
+    return None
+
+
 def load_rows() -> list[dict[str, Any]]:
     rows = json.loads(DATA_PATH.read_text(encoding="utf-8"))
     if not isinstance(rows, list) or not all(isinstance(row, dict) for row in rows):
@@ -259,8 +290,17 @@ def main() -> int:
         if not headline:
             continue
         current = str(row.get("englishHeadline") or "").strip()
-        if current and current != UNAVAILABLE and not args.force:
-            continue
+        if current and current != UNAVAILABLE:
+            quality_reason = translation_quality_reason(current, headline)
+            if quality_reason is None and not args.force:
+                continue
+            if quality_reason:
+                print(
+                    f"Re-translating {row.get('iso2', '?')}: existing English output "
+                    f"rejected ({quality_reason})",
+                    flush=True,
+                )
+        row["englishHeadline"] = UNAVAILABLE
         language = primary_language(row.get("language") or row.get("nativeLanguage"))
         if looks_english(headline, language):
             row["englishHeadline"] = headline
@@ -298,8 +338,18 @@ def main() -> int:
                 continue
             for (row, headline), translated in zip(items, translations):
                 if translated:
-                    row["englishHeadline"] = merge_translation(translated, headline)
-                    changed += 1
+                    candidate = merge_translation(translated, headline)
+                    quality_reason = translation_quality_reason(candidate, headline)
+                    if quality_reason is None:
+                        row["englishHeadline"] = candidate
+                        changed += 1
+                    else:
+                        print(
+                            f"NLLB output rejected for {row.get('iso2', '?')}: "
+                            f"{quality_reason}",
+                            file=sys.stderr,
+                        )
+                        unresolved[language].append((row, headline))
                 else:
                     unresolved[language].append((row, headline))
     else:
@@ -320,8 +370,17 @@ def main() -> int:
                     print(f"Argos translation failed for {row.get('iso2', '?')}: {error}", file=sys.stderr)
                     translated = ""
                 if translated:
-                    row["englishHeadline"] = merge_translation(translated, headline)
-                    changed += 1
+                    candidate = merge_translation(translated, headline)
+                    quality_reason = translation_quality_reason(candidate, headline)
+                    if quality_reason is None:
+                        row["englishHeadline"] = candidate
+                        changed += 1
+                    else:
+                        print(
+                            f"Argos output rejected for {row.get('iso2', '?')}: "
+                            f"{quality_reason}",
+                            file=sys.stderr,
+                        )
 
     remaining = sum(
         bool(row.get("headline")) and str(row.get("englishHeadline") or "").strip() in ("", UNAVAILABLE)
