@@ -15,6 +15,16 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
+const headlineTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
+function formatPublishedAt(value) {
+  const date = new Date(value || "");
+  return Number.isFinite(date.getTime()) ? headlineTimeFormatter.format(date) : "";
+}
+
 function simplifyRing(ring) {
   if (!Array.isArray(ring) || ring.length < 3) return [];
   const step = ring.length > 220 ? 4 : ring.length > 120 ? 3 : ring.length > 48 ? 2 : 1;
@@ -98,6 +108,7 @@ function renderCountries(countries) {
       : item.headline
         ? `https://news.google.com/search?q=${encodeURIComponent(item.headline)}`
         : "";
+    const publishedAt = formatPublishedAt(item.headlinePublishedAt);
     items.push(`
         <article class="country-row">
           <div class="country-rank">#${index + 1}</div>
@@ -106,6 +117,7 @@ function renderCountries(countries) {
             <h2 class="country-headline">${escapeHtml(item.name)}</h2>
             <span class="country-code">${escapeHtml(item.iso3)}</span>
             <p class="country-news">${headlineUrl ? `<a href="${escapeHtml(headlineUrl)}" target="_blank" rel="noopener noreferrer nofollow">${escapeHtml(headline)}</a>` : escapeHtml(headline)}</p>
+            ${publishedAt ? `<time class="headline-timestamp" datetime="${escapeHtml(item.headlinePublishedAt)}">Published ${escapeHtml(publishedAt)}</time>` : ""}
             ${descClamped ? `<p class="country-description">${escapeHtml(descClamped)}</p>` : ""}
           </div>
           <div class="country-population">

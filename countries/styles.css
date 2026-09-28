@@ -96,6 +96,15 @@ main {
 }
 
 .country-news a { color: inherit; text-underline-offset: 0.16em; }
+.headline-timestamp {
+  display: block;
+  margin-top: 6px;
+  color: #8ca8ba;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.03em;
+  line-height: 1.25;
+}
 .country-list-footer { display: flex; justify-content: center; padding: 16px; }
 .country-list-footer button {
   min-height: 44px;
