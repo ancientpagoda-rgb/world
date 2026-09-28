@@ -249,7 +249,10 @@ class NllbTranslator:
 
     def supports(self, language: str) -> bool:
         code = NLLB_LANGUAGE_CODES.get(language)
-        return bool(code and code in self.tokenizer.added_tokens_encoder)
+        if not code:
+            return False
+        vocabulary = self.tokenizer.get_vocab()
+        return code in self.tokenizer.added_tokens_encoder or code in vocabulary
 
     def translate_batch(self, language: str, texts: list[str]) -> list[str]:
         source_code = NLLB_LANGUAGE_CODES[language]
