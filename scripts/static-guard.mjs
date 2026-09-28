@@ -8,6 +8,7 @@ const syllableColorFix = await readFile("syllable-color-fix.js", "utf8");
 const ipaPhonetics = await readFile("ipa-phonetics.js", "utf8");
 const languageAwareIpa = await readFile("language-aware-ipa.js", "utf8");
 const wordPairAlignment = await readFile("word-pair-alignment.js", "utf8");
+const geometry = await readFile("world-geometry.json", "utf8");
 const index = await readFile("index.html", "utf8");
 const styles = await readFile("styles.css", "utf8");
 const failures = [];
@@ -34,6 +35,16 @@ for (const token of [
 ]) if (!index.includes(token)) failures.push(`index.html is missing ${token}`);
 for (const token of [".da-legend", ".da-sound-grid", ".da-sound", ".da-legend-summary-note", ".headline-timestamp"]) if (!styles.includes(token)) failures.push(`styles.css is missing ${token}`);
 for (const token of [".country-controls", ".headline-link", ".show-more-button"]) if (!styles.includes(token)) failures.push(`styles.css is missing ${token}`);
+if (app.includes("https://unpkg.com/visionscarto-world-atlas")) failures.push("app.js must use self-hosted world geometry");
+
+try {
+  const parsedGeometry = JSON.parse(geometry);
+  if (parsedGeometry.type !== "FeatureCollection" || !Array.isArray(parsedGeometry.features) || parsedGeometry.features.length < 200) {
+    failures.push("world-geometry.json is missing a sufficiently sized FeatureCollection");
+  }
+} catch (error) {
+  failures.push(`world-geometry.json is invalid JSON: ${error.message}`);
+}
 
 if (failures.length) {
   console.error("Static guard failed:");

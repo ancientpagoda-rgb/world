@@ -18,6 +18,8 @@ const providedUrl = process.env.SMOKE_URL;
 const { server, url } = providedUrl ? { server: null, url: providedUrl } : await startStaticServer();
 const debugUrl = new URL(url);
 debugUrl.searchParams.set("debug", "1");
+const bordersUrl = new URL(url);
+bordersUrl.searchParams.set("borders", "1");
 
 function resolveChromiumExecutablePath() {
   const candidates = [
@@ -150,6 +152,11 @@ try {
   if (interfaceProbe.headlineLinks < 20) errors.push(`Headline links are missing: ${JSON.stringify(interfaceProbe)}`);
   if (interfaceProbe.headlineTimestamps < 20) errors.push(`Headline timestamps are missing: ${JSON.stringify(interfaceProbe)}`);
 
+  const defaultGlobeProbe = await page.evaluate(() => window.__worldGlobeDiagnostics?.());
+  if (defaultGlobeProbe?.bordersEnabled || defaultGlobeProbe?.countryGeometryCount) {
+    errors.push(`Default globe should be borderless: ${JSON.stringify(defaultGlobeProbe)}`);
+  }
+
   await page.locator("#country-filter").fill("Japan");
   await page.waitForFunction(() => document.querySelectorAll("#country-list article").length === 1 && /Japan/i.test(document.querySelector("#country-list")?.textContent || ""));
   await page.locator("#country-filter").fill("");
@@ -222,26 +229,23 @@ try {
   const buildTagVisible = await page.evaluate(() => { const tag = document.querySelector("#build-tag"); return Boolean(tag && getComputedStyle(tag).display !== "none"); });
   if (!buildTagVisible) errors.push("Build tag should be visible when ?debug=1 is present.");
 
-  await page.goto(new URL("widget/demo/", url).toString(), { waitUntil: "domcontentloaded", timeout: 20000 });
-  await page.waitForFunction(() => document.querySelectorAll("canvas").length === 6, { timeout: 10000 });
-  await page.waitForTimeout(750);
-  const widgetProbe = await page.evaluate(() => ({
-    canvases: document.querySelectorAll("canvas").length,
-    focusableGlobes: document.querySelectorAll('canvas[role="application"][tabindex="0"]').length,
-    zeroWidth: Array.from(document.querySelectorAll("canvas")).filter((canvas) => canvas.width === 0 || canvas.getBoundingClientRect().width === 0).length,
-  }));
-  if (widgetProbe.canvases !== 6 || widgetProbe.focusableGlobes !== 3 || widgetProbe.zeroWidth) errors.push(`Widget demo is incomplete: ${JSON.stringify(widgetProbe)}`);
+  await page.goto(bordersUrl.toString(), { waitUntil: "domcontentloaded", timeout: 20000 });
+  await page.waitForFunction(() => document.querySelectorAll("#country-list article").length === 24, { timeout: 15000 });
+  await page.waitForFunction(() => window.__worldGlobeDiagnostics?.().countryGeometryCount > 0, { timeout: 15000 });
+  const borderedGlobeProbe = await page.evaluate(() => window.__worldGlobeDiagnostics?.());
+  if (!borderedGlobeProbe?.bordersEnabled || !borderedGlobeProbe.countryGeometryCount) errors.push(`Opt-in globe borders did not load locally: ${JSON.stringify(borderedGlobeProbe)}`);
 
   await page.goto(new URL("countries/", url).toString(), { waitUntil: "domcontentloaded", timeout: 20000 });
   await page.waitForFunction(() => document.querySelectorAll("#country-list article").length === 48, { timeout: 15000 });
   const countriesProbe = await page.evaluate(() => ({
     heading: document.querySelector("h1")?.textContent?.trim() || "",
-    globe: Boolean(document.querySelector('canvas[role="application"]')),
+    widget: Boolean(document.querySelector('script[src*="widget"]')),
     articles: document.querySelectorAll("#country-list article").length,
     links: document.querySelectorAll("#country-list .country-news a[href]").length,
     showMore: Boolean(document.querySelector("#country-list .country-list-footer button")),
+    externalGeometry: performance.getEntriesByType("resource").some((entry) => entry.name.includes("unpkg.com")),
   }));
-  if (countriesProbe.heading !== "Country briefings" || !countriesProbe.globe || countriesProbe.articles !== 48 || countriesProbe.links < 40 || !countriesProbe.showMore) errors.push(`Countries route is incomplete: ${JSON.stringify(countriesProbe)}`);
+  if (countriesProbe.heading !== "Country briefings" || countriesProbe.widget || countriesProbe.externalGeometry || countriesProbe.articles !== 48 || countriesProbe.links < 40 || !countriesProbe.showMore) errors.push(`Countries route is incomplete: ${JSON.stringify(countriesProbe)}`);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20000 });

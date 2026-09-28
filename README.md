@@ -8,13 +8,16 @@ World is a static, browser-based Earth globe and country briefing surface. It co
 npx serve .
 ```
 
-The application itself has no build step. The reusable globe widget does:
+The application itself has no build step. Country geometry is self-hosted in
+`world-geometry.json`; regenerate it with `npm run build:geometry` when the
+upstream atlas is refreshed. The main globe is borderless by default; append
+`?borders=1` to opt into local country borders.
 
-```sh
-cd widget
-npm ci
-npm run build
-```
+The geometry is derived from `visionscarto-world-atlas` (BSD-3-Clause),
+stored locally as a simplified FeatureCollection.
+
+The standalone embeddable widget and demo have been removed; `/countries/` is
+the lightweight list-only companion page.
 
 ## Checks
 

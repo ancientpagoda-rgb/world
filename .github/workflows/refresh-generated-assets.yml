@@ -52,6 +52,9 @@ jobs:
       - name: Refresh Earth texture
         run: python scripts/update_earth_live_texture.py
 
+      - name: Build self-hosted world geometry
+        run: node scripts/build_world_geometry.mjs
+
       - name: Refresh NOAA weather grid
         run: python scripts/update_noaa_weather_grid.py
 
@@ -69,6 +72,7 @@ jobs:
       - name: Validate generated assets
         run: |
           python -m json.tool earth-live.json > /dev/null
+          python -m json.tool world-geometry.json > /dev/null
           python -m json.tool noaa-weather-grid.json > /dev/null
           python -m json.tool weather-rasters.json > /dev/null
           python -m json.tool world-data.json > /dev/null
@@ -79,6 +83,7 @@ jobs:
           required_files = [
               "earth-live.jpg",
               "earth-live.json",
+              "world-geometry.json",
               "noaa-weather-grid.json",
               "weather-temp.png",
               "weather-precip.png",
@@ -136,4 +141,4 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "data: refresh generated assets"
-          file_pattern: earth-live.jpg earth-live.json noaa-weather-grid.json weather-temp.png weather-precip.png weather-rasters.json world-data.json
+          file_pattern: earth-live.jpg earth-live.json world-geometry.json noaa-weather-grid.json weather-temp.png weather-precip.png weather-rasters.json world-data.json

@@ -155,6 +155,7 @@
       (async () => {
         window.__worldDeferAppStart = true;
         const searchParams = new URLSearchParams(location.search);
+        window.__worldGlobeBordersEnabled = () => searchParams.get("borders") === "1";
         if (searchParams.get("debug") === "1") document.body.classList.add("debug-mode");
 
         const appV = String(Date.now());

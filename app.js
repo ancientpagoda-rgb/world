@@ -200,7 +200,7 @@ function reportFatal(err) {
 window.addEventListener("error", (e) => reportFatal(e?.error || e?.message || e));
 window.addEventListener("unhandledrejection", (e) => reportFatal(e?.reason || e));
 const DATA_URL = "./world-data.json";
-const WORLD_GEOJSON_URL = "https://unpkg.com/visionscarto-world-atlas@0.0.4/world/50m_countries.geojson";
+const WORLD_GEOJSON_URL = "./world-geometry.json";
 // Weather grid is generated from NOAA GFS in CI and served as static JSON.
 const NOAA_GRID_URL = "./noaa-weather-grid.json";
 // Raster overlays are generated from the grid in CI.
@@ -2156,7 +2156,7 @@ function initializeWeatherOrb() {
   window.addEventListener("resize", resizeOrb);
 
   loadStarCatalog();
-  loadWeatherGeometry();
+  if (window.__worldGlobeBordersEnabled?.()) loadWeatherGeometry();
 
   setupGlobeInteraction(canvas);
 

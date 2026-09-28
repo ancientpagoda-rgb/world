@@ -194,7 +194,9 @@
     renderEarthTexture(ctx, centerX, centerY, radius, rotY, rotX);
     drawGraticule(ctx, rotY, rotX, radius, centerX, centerY);
     drawCachedWeather(ctx, canvas, rotY, rotX, radius, centerX, centerY, timeMs);
-    drawWorldGeometry(ctx, rotY, rotX, radius, centerX, centerY);
+    if (window.__worldGlobeBordersEnabled?.()) {
+      drawWorldGeometry(ctx, rotY, rotX, radius, centerX, centerY);
+    }
 
     const shade = ctx.createRadialGradient(
       centerX - radius * 0.36,
@@ -253,6 +255,7 @@
     zoom: globeZoom,
     countryGeometryCount: weatherOrbState.features?.length || 0,
     weatherPointCount: weatherOrbState.weatherGrid?.size || 0,
+    bordersEnabled: Boolean(window.__worldGlobeBordersEnabled?.()),
     renderMode: debugState.earthRenderMode,
   });
 })();
