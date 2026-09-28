@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Regression checks for obviously malformed offline translation output."""
 
-from translate_headlines_offline import translation_quality_reason
+from translate_headlines_offline import NLLB_LANGUAGE_CODES, translation_quality_reason
 
 
 def expect_rejected(candidate: str, source: str, reason: str) -> None:
@@ -11,6 +11,9 @@ def expect_rejected(candidate: str, source: str, reason: str) -> None:
 
 
 def main() -> None:
+    if NLLB_LANGUAGE_CODES.get("es") != "spa_Latn":
+        raise SystemExit("Spanish must use the NLLB spa_Latn model")
+
     normal = "Mexico's investment week brings new projects - El Financiero"
     if translation_quality_reason(normal, "Mexico Investment Week: proyectos - El Financiero"):
         raise SystemExit("normal translation was rejected")

@@ -48,6 +48,7 @@ NLLB_LANGUAGE_CODES = {
     "dz": "dzo_Tibt",
     "el": "ell_Grek",
     "en": "eng_Latn",
+    "es": "spa_Latn",
     "et": "est_Latn",
     "eu": "eus_Latn",
     "fa": "pes_Arab",
