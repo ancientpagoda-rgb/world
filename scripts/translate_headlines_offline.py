@@ -163,6 +163,8 @@ def translation_quality_reason(translated: str, source: str) -> str | None:
     candidate = str(translated or "").strip()
     if not candidate or candidate == UNAVAILABLE:
         return "empty"
+    if candidate == str(source or "").strip():
+        return None
 
     source_body, _ = split_source_suffix(source)
     candidate_body, _ = split_source_suffix(candidate)

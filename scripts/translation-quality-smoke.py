@@ -17,6 +17,9 @@ def main() -> None:
     normal = "Mexico's investment week brings new projects - El Financiero"
     if translation_quality_reason(normal, "Mexico Investment Week: proyectos - El Financiero"):
         raise SystemExit("normal translation was rejected")
+    unchanged = "Brian Edgerton Obituary (2026) - Isle of Man, Isle of Man"
+    if translation_quality_reason(unchanged, unchanged):
+        raise SystemExit("unchanged English source was rejected")
 
     expect_rejected(
         "mainstream" * 12,
