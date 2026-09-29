@@ -48,6 +48,7 @@ SPECIAL_ALIASES = {
 }
 
 BLOCKED_SOURCES = {
+    "facebook.com",
     "instagram.com",
     "statista",
     "city.fukuoka.lg.jp",
@@ -66,6 +67,28 @@ BAD_TITLE_PATTERNS = [
     r"\bbest hotels\b",
     r"\bcanal saint martin\b",
     r"\bsaint martin lars\b",
+]
+
+SPORTS_TITLE_PATTERNS = [
+    r"\bcricket\b",
+    r"\bfootball\b",
+    r"\bsoccer\b",
+    r"\bbaseball\b",
+    r"\bbasketball\b",
+    r"\bhockey\b",
+    r"\btennis\b",
+    r"\brugby\b",
+    r"\bgolf\b",
+    r"\bboxing\b",
+    r"\b(?:t20|odi)\b",
+    r"\bmatch(?:es)?\b",
+    r"\bscore\b",
+    r"\b(?:semifinal|final|highlights?|medals?\s+tally)\b",
+    r"\b(?:asian|olympic|commonwealth) games\b",
+    r"\b(?:league|tournament|championship)\b",
+    r"\b(?:goal|goals|wicket|wickets|innings|runs?)\b",
+    r"\b(?:playing 11|starting xi|line[- ]?up)\b",
+    r"क्रिकेट|फुटबॉल|मैच|टीम|सेमीफाइनल|फाइनल|गोल|विकेट|मेडल|पदक|एशियन गेम्स|खेल",
 ]
 
 
@@ -121,6 +144,8 @@ def headline_is_usable(title: str, aliases: list[str]) -> bool:
         return False
     if any(re.search(pattern, title_norm, re.IGNORECASE) for pattern in BAD_TITLE_PATTERNS):
         return False
+    if any(re.search(pattern, title, re.IGNORECASE) for pattern in SPORTS_TITLE_PATTERNS):
+        return False
 
     return any(normalize_text(alias) in title_norm for alias in aliases)
 
@@ -160,6 +185,7 @@ def normalize_pub_date(value: str | None) -> str | None:
 def fetch_top_headline(name: str, iso2: str, language: str) -> tuple[str | None, str | None, str | None, str]:
     aliases = country_aliases(name, iso2)
     language_hint = f"{language}-{iso2}"
+    candidates = []
 
     for alias in aliases[:4]:
         query = urllib.parse.quote(f'"{alias}" when:30d')
@@ -174,7 +200,7 @@ def fetch_top_headline(name: str, iso2: str, language: str) -> tuple[str | None,
             channel = root.find("channel")
             if channel is None:
                 continue
-            for item in channel.findall("item"):
+            for item_index, item in enumerate(channel.findall("item")):
                 title = item.findtext("title")
                 if not title:
                     continue
@@ -187,10 +213,13 @@ def fetch_top_headline(name: str, iso2: str, language: str) -> tuple[str | None,
                         item.findtext("pubDate")
                         or item.findtext("{http://purl.org/dc/elements/1.1/}date")
                     )
-                    return title, link, published_at, language
+                    candidates.append((published_at or "", -item_index, title, link))
         except Exception:
             continue
 
+    if candidates:
+        published_at, _, title, link = max(candidates, key=lambda candidate: (candidate[0], candidate[1]))
+        return title, link, published_at or None, language
     return None, None, None, language
 
 

@@ -144,8 +144,9 @@ jobs:
 
       - name: Run application guards
         run: |
-          python -m py_compile scripts/build_world_data.py scripts/update_headlines_only.py scripts/translate_headlines_offline.py scripts/translation-quality-smoke.py
+          python -m py_compile scripts/build_world_data.py scripts/update_headlines_only.py scripts/translate_headlines_offline.py scripts/translation-quality-smoke.py scripts/headline-selection-smoke.py
           python scripts/translation-quality-smoke.py
+          python scripts/headline-selection-smoke.py
           npm run check:syntax
           npm run check:static
 
