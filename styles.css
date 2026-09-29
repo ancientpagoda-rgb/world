@@ -2,15 +2,25 @@
   box-sizing: border-box;
 }
 
+html {
+  min-height: 100%;
+  background: #03070d;
+  color-scheme: dark;
+  overscroll-behavior-x: none;
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
-  min-height: 100vh;
+  min-height: 100svh;
+  padding-bottom: env(safe-area-inset-bottom);
   background:
     radial-gradient(circle at top, rgba(28, 46, 74, 0.28), transparent 42%),
     radial-gradient(circle at 20% 20%, rgba(28, 88, 112, 0.12), transparent 24%),
     #03070d;
   color: #edf6ff;
   font-family: "Space Grotesk", system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
 }
 
 button,
@@ -43,8 +53,8 @@ summary:focus-visible,
 
 .build-tag {
   position: fixed;
-  top: 10px;
-  left: 12px;
+  top: max(10px, env(safe-area-inset-top));
+  left: max(12px, env(safe-area-inset-left));
   z-index: 5;
   display: none;
   font: 12px/1.2 "IBM Plex Mono", monospace;
@@ -61,13 +71,13 @@ summary:focus-visible,
 main {
   max-width: 1120px;
   margin: 0 auto;
-  padding: 0 16px 40px;
+  padding: 0 max(16px, env(safe-area-inset-left)) max(40px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-right));
 }
 
 .site-intro {
   max-width: 760px;
   margin: 0 auto;
-  padding: 42px 16px 10px;
+  padding: max(42px, calc(42px + env(safe-area-inset-top))) 16px 10px;
   text-align: center;
 }
 
@@ -245,7 +255,7 @@ main {
 
 .country-controls {
   position: sticky;
-  top: 8px;
+  top: max(8px, env(safe-area-inset-top));
   z-index: 4;
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(220px, 0.8fr);
@@ -283,6 +293,7 @@ main {
   border-radius: 10px;
   background: rgba(10, 18, 28, 0.94);
   color: #edf6ff;
+  font-size: 16px;
 }
 
 .country-control input::placeholder {
@@ -303,6 +314,7 @@ main {
   border: 1px solid rgba(140, 168, 186, 0.14);
   background: rgba(255, 255, 255, 0.045);
   border-radius: 16px;
+  scroll-margin-top: max(84px, calc(84px + env(safe-area-inset-top)));
 }
 
 .country-rank {
@@ -542,7 +554,7 @@ main {
 
 @media (max-width: 720px) {
   main {
-    padding: 0 12px 32px;
+    padding: 0 max(12px, env(safe-area-inset-left)) max(32px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-right));
   }
 
   .da-legend-summary-note {
@@ -558,7 +570,7 @@ main {
   }
 
   .site-intro {
-    padding-top: 56px;
+    padding-top: max(56px, calc(56px + env(safe-area-inset-top)));
   }
 
   .country-list-heading-row {
@@ -572,6 +584,10 @@ main {
 
   .country-controls {
     grid-template-columns: 1fr;
+  }
+
+  .country-row {
+    scroll-margin-top: max(13rem, calc(13rem + env(safe-area-inset-top)));
   }
 
   .country-news-grid {

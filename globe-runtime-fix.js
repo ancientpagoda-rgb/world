@@ -19,6 +19,7 @@
 
     const onPointerDown = (event) => {
       if (event.button !== undefined && event.button !== 0) return;
+      event.preventDefault();
       globeDrag.active = true;
       globeDrag.pointerId = event.pointerId;
       globeDrag.startX = event.clientX;
@@ -26,7 +27,11 @@
       globeDrag.startRotY = globeRotY;
       globeDrag.startRotX = globeRotX;
       canvas.classList.add("is-dragging");
-      canvas.focus({ preventScroll: true });
+      try {
+        canvas.focus({ preventScroll: true });
+      } catch {
+        canvas.focus();
+      }
       try {
         canvas.setPointerCapture(event.pointerId);
       } catch {
@@ -37,6 +42,7 @@
     const onPointerMove = (event) => {
       if (!globeDrag.active) return;
       if (globeDrag.pointerId != null && event.pointerId !== globeDrag.pointerId) return;
+      event.preventDefault();
       const rect = canvas.getBoundingClientRect();
       const scale = Math.max(1, Math.min(rect.width, rect.height));
       const dx = event.clientX - globeDrag.startX;
@@ -76,8 +82,8 @@
       }
     };
 
-    canvas.addEventListener("pointerdown", onPointerDown);
-    canvas.addEventListener("pointermove", onPointerMove);
+    canvas.addEventListener("pointerdown", onPointerDown, { passive: false });
+    canvas.addEventListener("pointermove", onPointerMove, { passive: false });
     canvas.addEventListener("pointerup", onPointerUp);
     canvas.addEventListener("pointercancel", onPointerUp);
     canvas.addEventListener("keydown", onKeyDown);

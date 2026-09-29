@@ -2143,7 +2143,7 @@ function initializeWeatherOrb() {
 
   // Render a small pixel-art buffer and let CSS scale it up. The globe is
   // decorative context; the country briefings should own the frame budget.
-  const resizeOrb = () => {
+  const resizeOrbNow = () => {
     const rect = canvas.getBoundingClientRect();
     const dpr = Math.min(window.devicePixelRatio || 1, MAX_CANVAS_DPR) * GLOBE_RENDER_SCALE;
     const w = Math.max(1, Math.round(rect.width * dpr));
@@ -2152,8 +2152,23 @@ function initializeWeatherOrb() {
     if (canvas.height !== h) canvas.height = h;
     ctx.imageSmoothingEnabled = false;
   };
-  resizeOrb();
-  window.addEventListener("resize", resizeOrb);
+  let resizeFrame = 0;
+  const scheduleOrbResize = () => {
+    if (resizeFrame) return;
+    resizeFrame = window.requestAnimationFrame(() => {
+      resizeFrame = 0;
+      resizeOrbNow();
+      window.__worldRequestGlobeRender?.();
+    });
+  };
+  resizeOrbNow();
+  if ("ResizeObserver" in window) {
+    const orbResizeObserver = new ResizeObserver(scheduleOrbResize);
+    orbResizeObserver.observe(canvas);
+  }
+  window.addEventListener("resize", scheduleOrbResize, { passive: true });
+  window.visualViewport?.addEventListener("resize", scheduleOrbResize, { passive: true });
+  window.addEventListener("orientationchange", scheduleOrbResize, { passive: true });
 
   loadStarCatalog();
   if (window.__worldGlobeBordersEnabled?.()) loadWeatherGeometry();

@@ -2,7 +2,7 @@
   position: fixed;
   inset: 0;
   width: 100vw;
-  height: 100vh;
+  height: 100svh;
   z-index: -1;
   display: block;
   pointer-events: none;
@@ -22,7 +22,10 @@
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   cursor: grab;
-  touch-action: pan-y;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .weather-orb-canvas:active {
@@ -31,8 +34,8 @@
 
 .rasters-toggle {
   position: fixed;
-  top: 10px;
-  left: 12px;
+  top: max(10px, env(safe-area-inset-top));
+  left: max(12px, env(safe-area-inset-left));
   z-index: 6;
   padding: 6px 10px;
   border: 1px solid rgba(200, 220, 245, 0.18);
@@ -62,8 +65,8 @@
   }
 
   .rasters-toggle {
-    top: 8px;
-    left: 8px;
+    top: max(8px, env(safe-area-inset-top));
+    left: max(8px, env(safe-area-inset-left));
   }
 
   .debug-mode .rasters-toggle {
