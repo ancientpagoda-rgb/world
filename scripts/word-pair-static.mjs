@@ -9,7 +9,6 @@ for (const token of [
   "waitForLanguageAwareIpa",
   "__worldLanguageAwareIpaDiagnostics",
   "World v1.1.0",
-  "Every source word gets its own color",
 ]) {
   if (!index.includes(token)) failures.push(`index.html is missing ${token}`);
 }

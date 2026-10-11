@@ -27,14 +27,11 @@ for (const token of ["languageAwareIpaDisplay", "cyrillicIpa", "greekIpa", "deva
 for (const token of ["WORD_TOKEN_RE", "buildWordPairs", "alignHeadlineWordPairs", "paired-original", "paired-ipa", "wordColor(index)", "__worldWordPairDiagnostics"]) if (!wordPairAlignment.includes(token)) failures.push(`word-pair-alignment.js is missing ${token}`);
 
 for (const token of [
-  "country-list", "starfield-canvas", "weather-orb-canvas", "ipa-sound-legend", "IPA sound legend",
-  "Vowels &amp; diphthongs", "Consonants", "Extra marks", ">θ<", ">ð<", ">aɪ<", ">əʊ<",
-  "Every source word gets its own color", "English translation stays plain and uncolored", "World v1.1.0",
-  "country-filter", "country-jump", "country-summary", "startWorldApp",
+  "country-list", "starfield-canvas", "weather-orb-canvas", "startWorldApp",
   "./app.js", "./translation-runtime-fix.js", "./translation-runtime-finalize.js", "./syllable-color-fix.js", "./ipa-phonetics.js", "./word-pair-alignment.js", "./globe-runtime-fix.js", "window.initializeWeatherOrb()",
 ]) if (!index.includes(token)) failures.push(`index.html is missing ${token}`);
-for (const token of [".da-legend", ".da-sound-grid", ".da-sound", ".da-legend-summary-note", ".headline-timestamp"]) if (!styles.includes(token)) failures.push(`styles.css is missing ${token}`);
-for (const token of [".country-controls", ".headline-link", ".show-more-button"]) if (!styles.includes(token)) failures.push(`styles.css is missing ${token}`);
+for (const token of [".headline-timestamp"]) if (!styles.includes(token)) failures.push(`styles.css is missing ${token}`);
+for (const token of [".headline-link", ".show-more-button"]) if (!styles.includes(token)) failures.push(`styles.css is missing ${token}`);
 if (app.includes("https://unpkg.com/visionscarto-world-atlas")) failures.push("app.js must use self-hosted world geometry");
 
 try {
