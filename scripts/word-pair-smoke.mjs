@@ -9,6 +9,7 @@ const types = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".png": "image/png",
   ".svg": "image/svg+xml",
@@ -50,6 +51,12 @@ try {
   ].filter(Boolean).find((candidate) => existsSync(candidate));
   browser = await chromium.launch({ ...(executablePath ? { executablePath } : {}), args: ["--no-sandbox"] });
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await page.route("https://**/*", (route) => route.abort());
+  const browserMessages = [];
+  page.on("console", (message) => {
+    if (["warning", "error"].includes(message.type())) browserMessages.push(`${message.type()}: ${message.text()}`);
+  });
+  page.on("pageerror", (error) => browserMessages.push(`pageerror: ${error.message}`));
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20000 });
   await page.waitForFunction(
     () => typeof window.__worldWordPairDiagnostics === "function"
@@ -123,6 +130,7 @@ try {
   if (failures.length) {
     console.error("Word-pair browser smoke failed:");
     for (const failure of failures) console.error(`- ${failure}`);
+    for (const message of browserMessages) console.error(`- Browser ${message}`);
     process.exitCode = 1;
   } else {
     console.log(`Word-pair browser smoke passed: ${result.originalCount} exact Native ↔ IPA word pairs; mixed-script IPA clean; CJK segmented; English plain; no source-script IPA leaks.`);

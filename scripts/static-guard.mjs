@@ -8,6 +8,7 @@ const syllableColorFix = await readFile("syllable-color-fix.js", "utf8");
 const ipaPhonetics = await readFile("ipa-phonetics.js", "utf8");
 const languageAwareIpa = await readFile("language-aware-ipa.js", "utf8");
 const wordPairAlignment = await readFile("word-pair-alignment.js", "utf8");
+const pinyinPro = await readFile("vendor/pinyin-pro-3.26.0.mjs", "utf8");
 const geometry = await readFile("world-geometry.json", "utf8");
 const index = await readFile("index.html", "utf8");
 const styles = await readFile("styles.css", "utf8");
@@ -33,6 +34,9 @@ for (const token of [
 for (const token of [".headline-timestamp"]) if (!styles.includes(token)) failures.push(`styles.css is missing ${token}`);
 for (const token of [".headline-link", ".show-more-button"]) if (!styles.includes(token)) failures.push(`styles.css is missing ${token}`);
 if (app.includes("https://unpkg.com/visionscarto-world-atlas")) failures.push("app.js must use self-hosted world geometry");
+if (!app.includes('const PinyinProImportUrl = "./vendor/pinyin-pro-3.26.0.mjs"')) failures.push("app.js must use the vendored pinyin-pro module");
+if (app.includes("esm.sh/pinyin-pro")) failures.push("app.js must not load pinyin-pro from a runtime CDN");
+if (!pinyinPro.includes("export {") || !pinyinPro.includes("pinyin")) failures.push("vendored pinyin-pro module looks incomplete");
 
 try {
   const parsedGeometry = JSON.parse(geometry);

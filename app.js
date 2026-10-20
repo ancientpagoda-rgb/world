@@ -204,7 +204,7 @@ const TEXTURE_ROT_STEP = 0.03; // ~1.7 degrees
 
 const DEVANAGARI_RE = /[\u0900-\u097F]/;
 const HAN_RE = /[\u3400-\u9FFF\uF900-\uFAFF]/;
-const PinyinProImportUrl = "https://esm.sh/pinyin-pro@3.26.0?bundle";
+const PinyinProImportUrl = "./vendor/pinyin-pro-3.26.0.mjs";
 let pinyinProPromise = null;
 const ENGLISH_TRANSLATION_UNAVAILABLE = "English translation unavailable";
 const TONE_SUPERSCRIPTS = {

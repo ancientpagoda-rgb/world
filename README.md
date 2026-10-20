@@ -29,3 +29,5 @@ npm run test:smoke
 ```
 
 Generated country, weather, and Earth-image assets are refreshed by GitHub Actions. Headline English values are generated offline during the refresh: the cached NLLB-200 model is tried first, followed by Argos Translate for languages NLLB cannot cover or failed batches. The browser does not call a translation service. The main application is deployed through GitHub Pages.
+
+Chinese transliteration uses the pinned `pinyin-pro` 3.26.0 browser module in `vendor/`; runtime rendering does not depend on a third-party CDN. Its MIT license is preserved in `vendor/PINYIN-PRO-LICENSE`.
