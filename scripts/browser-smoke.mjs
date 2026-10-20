@@ -138,16 +138,13 @@ try {
   if (!/India/i.test(firstRowText)) errors.push(`First country row should begin with India, got: ${firstRowText.slice(0, 120)}`);
 
   const interfaceProbe = await page.evaluate(() => ({
-    heading: document.querySelector("h1")?.textContent?.trim() || "",
-    filter: Boolean(document.querySelector("#country-filter")),
-    jumpOptions: document.querySelector("#country-jump")?.options?.length || 0,
     articles: document.querySelectorAll("#country-list article").length,
     headlineLinks: document.querySelectorAll("#country-list a.news-original[href]").length,
     headlineTimestamps: document.querySelectorAll("#country-list time.headline-timestamp").length,
     showMore: Boolean(document.querySelector("#country-list .show-more-button")),
+    redundantChrome: Boolean(document.querySelector(".site-intro, #ipa-sound-legend, .country-list-heading-row, .country-controls, #country-summary")),
   }));
-  if (interfaceProbe.heading !== "World") errors.push(`Main heading is missing or wrong: ${JSON.stringify(interfaceProbe)}`);
-  if (!interfaceProbe.filter || interfaceProbe.jumpOptions < 200) errors.push(`Country navigation controls are incomplete: ${JSON.stringify(interfaceProbe)}`);
+  if (interfaceProbe.redundantChrome) errors.push(`Homepage still contains redundant framing: ${JSON.stringify(interfaceProbe)}`);
   if (interfaceProbe.articles !== 24 || !interfaceProbe.showMore) errors.push(`Progressive country rendering is not active: ${JSON.stringify(interfaceProbe)}`);
   if (interfaceProbe.headlineLinks < 20) errors.push(`Headline links are missing: ${JSON.stringify(interfaceProbe)}`);
   if (interfaceProbe.headlineTimestamps < 20) errors.push(`Headline timestamps are missing: ${JSON.stringify(interfaceProbe)}`);
@@ -157,9 +154,6 @@ try {
     errors.push(`Default globe should be borderless: ${JSON.stringify(defaultGlobeProbe)}`);
   }
 
-  await page.locator("#country-filter").fill("Japan");
-  await page.waitForFunction(() => document.querySelectorAll("#country-list article").length === 1 && /Japan/i.test(document.querySelector("#country-list")?.textContent || ""));
-  await page.locator("#country-filter").fill("");
   await page.waitForFunction(() => document.querySelectorAll("#country-list article").length === 24);
 
   const translationProbe = await page.evaluate(async () => ({
@@ -175,7 +169,6 @@ try {
     ipaDiagnostics: window.__worldIpaDiagnostics(),
     languageDiagnostics: window.__worldLanguageAwareIpaDiagnostics(),
     header: document.querySelector(".news-list-header")?.children?.[1]?.textContent || "",
-    legend: document.querySelector("#ipa-sound-legend summary")?.textContent || "",
   }));
   if (translationProbe.english !== "Hello world") errors.push(`English passthrough translation changed unexpectedly: ${translationProbe.english}`);
   if (!translationProbe.ipa.includes("ðə") || !translationProbe.ipa.includes("kwɪk") || !translationProbe.ipa.includes("aʊ")) errors.push(`English IPA probe was wrong: ${translationProbe.ipa}`);
@@ -190,7 +183,6 @@ try {
   if (!translationProbe.ipaDiagnostics?.patched) errors.push(`IPA diagnostics unavailable: ${JSON.stringify(translationProbe.ipaDiagnostics)}`);
   if (!translationProbe.languageDiagnostics?.patched || translationProbe.languageDiagnostics.direct < 5) errors.push(`Language-aware IPA diagnostics were incomplete: ${JSON.stringify(translationProbe.languageDiagnostics)}`);
   if (!/IPA phonetics/i.test(translationProbe.header)) errors.push(`Phonetics header was not switched to IPA: ${translationProbe.header}`);
-  if (!/IPA sound legend/i.test(translationProbe.legend)) errors.push(`IPA sound legend was not present: ${translationProbe.legend}`);
 
   const coordinationProbe = await page.evaluate(async () => {
     const row = document.createElement("li");
@@ -252,11 +244,9 @@ try {
   await page.waitForFunction(() => document.querySelectorAll("#country-list article").length === 24, { timeout: 15000 });
   const mobileProbe = await page.evaluate(() => ({
     articles: document.querySelectorAll("#country-list article").length,
-    filterVisible: Boolean(document.querySelector("#country-filter")?.getClientRects().length),
-    jumpVisible: Boolean(document.querySelector("#country-jump")?.getClientRects().length),
     horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
   }));
-  if (mobileProbe.articles !== 24 || !mobileProbe.filterVisible || !mobileProbe.jumpVisible || mobileProbe.horizontalOverflow > 1) errors.push(`Mobile layout regression: ${JSON.stringify(mobileProbe)}`);
+  if (mobileProbe.articles !== 24 || mobileProbe.horizontalOverflow > 1) errors.push(`Mobile layout regression: ${JSON.stringify(mobileProbe)}`);
 } finally {
   await browser.close();
   if (server) await new Promise((resolveClose) => server.close(resolveClose));
@@ -268,4 +258,4 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log("Browser smoke test passed: desktop/mobile navigation, progressive rendering, language-aware IPA, coordinated Original/IPA word colors, plain English, legend, and globe routes loaded without JS errors.");
+console.log("Browser smoke test passed: desktop/mobile rendering, progressive country rows, language-aware IPA, coordinated Original/IPA word colors, plain English, and globe routes loaded without JS errors.");

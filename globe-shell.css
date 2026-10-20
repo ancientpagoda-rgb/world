@@ -32,7 +32,6 @@
   cursor: grabbing;
 }
 
-
 @media (max-width: 720px) {
   .world-visual-stage {
     width: 100%;

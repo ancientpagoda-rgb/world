@@ -71,233 +71,11 @@ summary:focus-visible,
 main {
   max-width: 1120px;
   margin: 0 auto;
-  padding: 0 max(16px, env(safe-area-inset-left)) max(40px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-right));
-}
-
-.site-intro {
-  max-width: 760px;
-  margin: 0 auto;
-  padding: max(42px, calc(42px + env(safe-area-inset-top))) 16px 10px;
-  text-align: center;
-}
-
-.site-intro h1,
-.country-list-heading-row h2 {
-  margin: 0;
-  color: #edf6ff;
-  font-weight: 700;
-  letter-spacing: -0.035em;
-}
-
-.site-intro h1 {
-  font-size: clamp(2.25rem, 6vw, 4.5rem);
-  line-height: 0.95;
-}
-
-.site-intro > p:last-child {
-  margin: 12px auto 0;
-  color: rgba(180, 202, 216, 0.92);
-  line-height: 1.55;
-}
-
-.site-kicker {
-  margin: 0 0 8px;
-  color: #95ffb8;
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 0.7rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.da-legend {
-  margin: 2px 0 12px;
-  border: 1px solid rgba(140, 168, 186, 0.16);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.038);
-  overflow: hidden;
-}
-
-.da-legend > summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 11px 14px;
-  cursor: pointer;
-  list-style: none;
-  color: #edf6ff;
-  font-weight: 600;
-}
-
-.da-legend > summary::-webkit-details-marker {
-  display: none;
-}
-
-.da-legend > summary::after {
-  content: "+";
-  margin-left: auto;
-  color: #95ffb8;
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 1rem;
-}
-
-.da-legend[open] > summary::after {
-  content: "−";
-}
-
-.da-legend-summary-note {
-  margin-left: auto;
-  color: rgba(149, 173, 188, 0.88);
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 0.7rem;
-  font-weight: 400;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.da-legend-body {
-  padding: 0 14px 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.da-legend-intro {
-  max-width: 860px;
-  margin: 12px 0 14px;
-  color: rgba(180, 202, 216, 0.9);
-  font-size: 0.82rem;
-  line-height: 1.45;
-}
-
-.da-legend-group + .da-legend-group {
-  margin-top: 16px;
-}
-
-.da-legend-group h3 {
-  margin: 0 0 8px;
-  color: rgba(149, 255, 184, 0.9);
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 0.72rem;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.da-sound-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
-  gap: 6px;
-}
-
-.da-sound {
-  display: grid;
-  grid-template-columns: 2.1rem minmax(0, 1fr);
-  grid-template-rows: auto auto;
-  column-gap: 8px;
-  align-items: center;
-  min-width: 0;
-  padding: 7px 9px;
-  border: 1px solid rgba(140, 168, 186, 0.12);
-  border-radius: 10px;
-  background: rgba(3, 10, 17, 0.34);
-}
-
-.da-sound b {
-  grid-row: 1 / 3;
-  color: #edf6ff;
-  font-size: 1.25rem;
-  line-height: 1;
-  text-align: center;
-}
-
-.da-sound code {
-  color: rgba(72, 219, 251, 0.96);
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 0.72rem;
-  white-space: nowrap;
-}
-
-.da-sound span {
-  overflow: hidden;
-  color: rgba(174, 196, 210, 0.88);
-  font-size: 0.7rem;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.da-sound-grid-compact .da-sound b {
-  color: rgba(254, 202, 87, 0.96);
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-left)) max(40px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-right));
 }
 
 .country-list-section {
-  margin-top: 28px;
-}
-
-.country-list-heading-row {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 12px;
-}
-
-.country-list-heading-row h2 {
-  font-size: clamp(1.5rem, 3vw, 2.25rem);
-}
-
-.country-summary {
-  margin: 0;
-  color: rgba(174, 196, 210, 0.9);
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 0.75rem;
-  text-align: right;
-}
-
-.country-controls {
-  position: sticky;
-  top: max(8px, env(safe-area-inset-top));
-  z-index: 4;
-  display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(220px, 0.8fr);
-  gap: 10px;
-  margin-bottom: 12px;
-  padding: 10px;
-  border: 1px solid rgba(140, 168, 186, 0.18);
-  border-radius: 16px;
-  background: rgba(3, 10, 17, 0.88);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-}
-
-.country-control {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-}
-
-.country-control > span {
-  color: rgba(174, 196, 210, 0.9);
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 0.68rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.country-control input,
-.country-control select {
-  width: 100%;
-  min-height: 44px;
-  padding: 10px 12px;
-  border: 1px solid rgba(140, 168, 186, 0.24);
-  border-radius: 10px;
-  background: rgba(10, 18, 28, 0.94);
-  color: #edf6ff;
-  font-size: 16px;
-}
-
-.country-control input::placeholder {
-  color: rgba(149, 173, 188, 0.72);
+  margin-top: 10px;
 }
 
 .country-list {
@@ -355,13 +133,6 @@ main {
   justify-items: center;
   gap: 8px;
   padding: 16px 0 4px;
-}
-
-.country-list-footer p {
-  margin: 0;
-  color: rgba(174, 196, 210, 0.86);
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 0.72rem;
 }
 
 .show-more-button {
@@ -557,32 +328,7 @@ main {
     padding: 0 max(12px, env(safe-area-inset-left)) max(32px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-right));
   }
 
-  .da-legend-summary-note {
-    display: none;
-  }
-
-  .da-sound-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .country-row {
-    grid-template-columns: 1fr;
-  }
-
-  .site-intro {
-    padding-top: max(56px, calc(56px + env(safe-area-inset-top)));
-  }
-
-  .country-list-heading-row {
-    align-items: start;
-    flex-direction: column;
-  }
-
-  .country-summary {
-    text-align: left;
-  }
-
-  .country-controls {
     grid-template-columns: 1fr;
   }
 
@@ -606,12 +352,6 @@ main {
   .country-article-da {
     padding-left: 0.75rem;
     border-left: 2px solid rgba(255, 255, 255, 0.18);
-  }
-}
-
-@media (max-width: 440px) {
-  .da-sound-grid {
-    grid-template-columns: 1fr;
   }
 }
 

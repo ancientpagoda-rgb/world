@@ -1,10 +1,10 @@
 # Session Summary
 
 ## Goals
-Interactive country briefing surface — searchable list, translated snippets, and compact linked headlines.
+Interactive country briefing surface — progressive country rows, translated snippets, and compact linked headlines.
 
 ## Completed features
-- **Search + jump controls** — filter and jump to countries from the briefing list
+- **Minimal briefing surface** — progressive country rows without redundant search, jump, summary, or legend chrome
 - **Translated snippets** — original text, transliteration, and English translation columns
 - **Self-hosted geometry** — optional country borders use the local `world-geometry.json` asset
 - **Static data refresh** — country data and assets are served from the repo and refreshed by CI

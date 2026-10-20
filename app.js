@@ -4,27 +4,12 @@ const LIVE_POPULATION_REFRESH_MS = 6 * 60 * 60 * 1000;
 const COUNTRY_PAGE_SIZE = 24;
 const countryUi = {
   root: null,
-  filterInput: null,
-  jumpSelect: null,
-  summary: null,
 };
 
 let allCountries = [];
 let visibleCountryLimit = COUNTRY_PAGE_SIZE;
 let livePopulationRefreshTimer = null;
 let livePopulationRefreshInFlight = null;
-
-function normalizeSearchText(value = "") {
-  return String(value).toLowerCase().normalize("NFKD");
-}
-
-function buildCountrySearchIndex(item) {
-  return normalizeSearchText(
-    [item.name, item.iso3, item.title, item.headline, item.text, item.year]
-      .filter(Boolean)
-      .join(" "),
-  );
-}
 
 function buildCountryRowId(item, index) {
   const raw = String(item.iso3 || item.name || `country-${index + 1}`).toLowerCase();
@@ -130,42 +115,13 @@ function startLivePopulationRefreshLoop() {
   }
 }
 
-function syncCountryControls(countries) {
+function syncCountryRoot() {
   countryUi.root = countryUi.root || document.querySelector("#country-list");
-  countryUi.filterInput = countryUi.filterInput || document.querySelector("#country-filter");
-  countryUi.jumpSelect = countryUi.jumpSelect || document.querySelector("#country-jump");
-  countryUi.summary = countryUi.summary || document.querySelector("#country-summary");
-
-  if (countryUi.jumpSelect) {
-    const currentValue = countryUi.jumpSelect.value;
-    countryUi.jumpSelect.innerHTML = '<option value="">Choose a country…</option>';
-    for (const item of countries) {
-      const option = document.createElement("option");
-      option.value = item._rowId || "";
-      option.textContent = `${item.name || "Unknown"}${item.iso3 ? ` (${item.iso3})` : ""}`;
-      countryUi.jumpSelect.appendChild(option);
-    }
-    if ([...countryUi.jumpSelect.options].some((opt) => opt.value === currentValue)) {
-      countryUi.jumpSelect.value = currentValue;
-    }
-  }
 }
 
-function updateCountrySummary(visibleCount = 0, totalCount = 0, query = "") {
-  if (!countryUi.summary) return;
-  const qualifier = query ? ` matching “${query}”` : "";
-  countryUi.summary.textContent = `Showing ${populationFormatter.format(visibleCount)} of ${populationFormatter.format(totalCount)}${qualifier}`;
-  countryUi.summary.hidden = false;
-}
-
-async function applyCountryFilter({ resetLimit = false } = {}) {
-  const rawQuery = String(countryUi.filterInput?.value || "").trim();
-  const query = normalizeSearchText(rawQuery);
-  const filtered = query ? allCountries.filter((item) => item._search.includes(query)) : allCountries.slice();
-  if (resetLimit) visibleCountryLimit = COUNTRY_PAGE_SIZE;
-  syncCountryControls(filtered);
-  await renderCountries(filtered);
-  updateCountrySummary(Math.min(filtered.length, visibleCountryLimit), filtered.length, rawQuery);
+async function applyCountryFilter() {
+  syncCountryRoot();
+  await renderCountries(allCountries);
 }
 
 // Surface runtime failures on-page (helps debug when the globe goes blank).
@@ -2600,18 +2556,15 @@ async function renderCountries(countries) {
   if (visibleCountries.length < countries.length) {
     const footer = document.createElement("div");
     footer.className = "country-list-footer";
-    const status = document.createElement("p");
-    status.textContent = `${populationFormatter.format(visibleCountries.length)} of ${populationFormatter.format(countries.length)} countries loaded`;
     const more = document.createElement("button");
     more.type = "button";
     more.className = "show-more-button";
-    more.textContent = `Show ${Math.min(COUNTRY_PAGE_SIZE, countries.length - visibleCountries.length)} more`;
+    more.textContent = "Load more";
     more.addEventListener("click", async () => {
       visibleCountryLimit += COUNTRY_PAGE_SIZE;
       await renderCountries(countries);
-      updateCountrySummary(Math.min(countries.length, visibleCountryLimit), countries.length, countryUi.filterInput?.value || "");
     });
-    footer.append(status, more);
+    footer.appendChild(more);
     root.appendChild(footer);
   }
 }
@@ -2666,37 +2619,7 @@ async function loadCountries() {
   allCountries = countries.map((item, index) => ({
     ...item,
     _rowId: buildCountryRowId(item, index),
-    _search: buildCountrySearchIndex(item),
   }));
-  syncCountryControls(allCountries);
-  if (countryUi.filterInput && !countryUi.filterInput.dataset.bound) {
-    countryUi.filterInput.dataset.bound = "1";
-    countryUi.filterInput.addEventListener("input", () => {
-      applyCountryFilter({ resetLimit: true }).catch((err) => reportFatal(err));
-    });
-  }
-  if (countryUi.jumpSelect && !countryUi.jumpSelect.dataset.bound) {
-    countryUi.jumpSelect.dataset.bound = "1";
-    countryUi.jumpSelect.addEventListener("change", async () => {
-      const targetId = countryUi.jumpSelect.value;
-      if (!targetId) return;
-      const rawQuery = String(countryUi.filterInput?.value || "").trim();
-      const query = normalizeSearchText(rawQuery);
-      const filtered = query ? allCountries.filter((item) => item._search.includes(query)) : allCountries.slice();
-      const targetIndex = filtered.findIndex((item) => item._rowId === targetId);
-      if (targetIndex >= visibleCountryLimit) {
-        visibleCountryLimit = targetIndex + 1;
-        await renderCountries(filtered);
-        updateCountrySummary(Math.min(filtered.length, visibleCountryLimit), filtered.length, rawQuery);
-      }
-      const target = document.getElementById(targetId);
-      if (target) {
-        target.scrollIntoView({ behavior: "smooth", block: "start" });
-        target.focus({ preventScroll: true });
-      }
-      countryUi.jumpSelect.value = "";
-    });
-  }
   await applyCountryFilter();
   void refreshLivePopulationData();
   startLivePopulationRefreshLoop();
@@ -2707,11 +2630,9 @@ function startWorldApp() {
   if (worldAppStarted) return;
   worldAppStarted = true;
   renderLoading();
-  updateCountrySummary(0, 0);
   loadCountries().catch((err) => {
     console.error("Failed to load country data:", err);
     renderError();
-    if (countryUi.summary) countryUi.summary.textContent = "Could not load country data.";
   });
 }
 
