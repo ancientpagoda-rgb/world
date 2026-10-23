@@ -32,6 +32,11 @@
   cursor: grabbing;
 }
 
+.weather-orb-canvas:focus-visible {
+  outline: 2px solid rgba(149, 255, 184, 0.95);
+  outline-offset: 4px;
+}
+
 @media (max-width: 720px) {
   .world-visual-stage {
     width: 100%;

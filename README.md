@@ -13,6 +13,9 @@ The application itself has no build step. Country geometry is self-hosted in
 upstream atlas is refreshed. The main globe is borderless by default; append
 `?borders=1` to opt into local country borders.
 
+Drag the globe or use the arrow keys to rotate it. Scroll or use `+` and `-` to
+zoom; `Home` restores the default orientation and zoom.
+
 The geometry is derived from `visionscarto-world-atlas` (BSD-3-Clause),
 stored locally as a simplified FeatureCollection.
 

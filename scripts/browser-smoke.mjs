@@ -154,6 +154,28 @@ try {
   if (defaultGlobeProbe?.bordersEnabled || defaultGlobeProbe?.countryGeometryCount) {
     errors.push(`Default globe should be borderless: ${JSON.stringify(defaultGlobeProbe)}`);
   }
+  if (defaultGlobeProbe?.zoom !== 1) errors.push(`Default globe zoom should be 1: ${JSON.stringify(defaultGlobeProbe)}`);
+
+  const globe = page.locator("#weather-orb-canvas");
+  await globe.focus();
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("+");
+  const keyboardGlobeProbe = await page.evaluate(() => ({
+    diagnostics: window.__worldGlobeDiagnostics?.(),
+    focused: document.activeElement?.id,
+    label: document.querySelector("#weather-orb-canvas")?.getAttribute("aria-label") || "",
+  }));
+  if (keyboardGlobeProbe.focused !== "weather-orb-canvas"
+    || !(keyboardGlobeProbe.diagnostics?.rotationY > 0)
+    || !(keyboardGlobeProbe.diagnostics?.zoom > 1)
+    || !/plus and minus to zoom/i.test(keyboardGlobeProbe.label)) {
+    errors.push(`Keyboard globe controls are incomplete: ${JSON.stringify(keyboardGlobeProbe)}`);
+  }
+  await page.keyboard.press("Home");
+  const resetGlobeProbe = await page.evaluate(() => window.__worldGlobeDiagnostics?.());
+  if (resetGlobeProbe?.rotationY !== 0 || resetGlobeProbe?.rotationX !== 0 || resetGlobeProbe?.zoom !== 1) {
+    errors.push(`Home did not reset the globe view: ${JSON.stringify(resetGlobeProbe)}`);
+  }
 
   await page.waitForFunction(() => document.querySelectorAll("#country-list article").length === 24);
 

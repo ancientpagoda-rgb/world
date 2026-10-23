@@ -3,6 +3,7 @@
   window.__worldGlobePatchInstalled = true;
 
   const clampPitch = (value) => Math.max(-Math.PI * 0.48, Math.min(Math.PI * 0.48, value));
+  const clampZoom = (value) => Math.max(0.68, Math.min(1.16, value));
 
   setupGlobeInteraction = function setupGlobeInteractionPatched(canvas) {
     globeDrag.active = false;
@@ -14,7 +15,7 @@
     canvas.setAttribute("role", "application");
     canvas.setAttribute(
       "aria-label",
-      "Interactive Earth globe. Drag to rotate and use arrow keys to rotate.",
+      "Interactive Earth globe. Drag or use arrow keys to rotate. Scroll or use plus and minus to zoom. Home resets the view.",
     );
 
     const onPointerDown = (event) => {
@@ -71,9 +72,12 @@
       else if (event.key === "ArrowRight") globeRotY += rotationStep;
       else if (event.key === "ArrowUp") globeRotX = clampPitch(globeRotX + rotationStep);
       else if (event.key === "ArrowDown") globeRotX = clampPitch(globeRotX - rotationStep);
+      else if (event.key === "+" || event.key === "=") globeZoom = clampZoom(globeZoom + 0.08);
+      else if (event.key === "-" || event.key === "_") globeZoom = clampZoom(globeZoom - 0.08);
       else if (event.key === "Home") {
         globeRotY = 0;
         globeRotX = 0;
+        globeZoom = 1;
       } else handled = false;
 
       if (handled) {
@@ -82,11 +86,18 @@
       }
     };
 
+    const onWheel = (event) => {
+      event.preventDefault();
+      globeZoom = clampZoom(globeZoom * Math.exp(-event.deltaY * 0.001));
+      window.__worldRequestGlobeRender?.();
+    };
+
     canvas.addEventListener("pointerdown", onPointerDown, { passive: false });
     canvas.addEventListener("pointermove", onPointerMove, { passive: false });
     canvas.addEventListener("pointerup", onPointerUp);
     canvas.addEventListener("pointercancel", onPointerUp);
     canvas.addEventListener("keydown", onKeyDown);
+    canvas.addEventListener("wheel", onWheel, { passive: false });
 
     return () => {
       canvas.removeEventListener("pointerdown", onPointerDown);
@@ -94,6 +105,7 @@
       canvas.removeEventListener("pointerup", onPointerUp);
       canvas.removeEventListener("pointercancel", onPointerUp);
       canvas.removeEventListener("keydown", onKeyDown);
+      canvas.removeEventListener("wheel", onWheel);
     };
   };
 
